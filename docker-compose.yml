@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_NAME=anova
+      - DB_USER=anova_user
+      - DB_PASSWORD=anova@bask3t
+      - ANTHROPICS_API_KEY=${ANTHROPICS_API_KEY}
+    volumes:
+      - ./app/temp:/app/app/temp
+    restart: unless-stopped
+
+  db:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=anova_user
+      - POSTGRES_PASSWORD=anova@bask3t
+      - POSTGRES_DB=anova
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
