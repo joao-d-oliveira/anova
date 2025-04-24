@@ -1,11 +1,11 @@
 # Basketball PDF Analysis Pipeline
 
-A web application that allows users to upload basketball statistics PDFs, analyzes the data using Claude 3.7 Anthropic API, and generates comprehensive scouting reports with game predictions.
+A web application that allows users to upload basketball statistics PDFs, analyzes the data using Anthropic's Claude API, and generates comprehensive scouting reports with game predictions.
 
 ## Features
 
 - Upload multiple PDF files containing basketball statistics
-- Analyze PDFs directly using Claude 3.7 Anthropic API
+- Analyze PDFs directly using Anthropic's Claude API
 - Extract team and player statistics with AI-powered analysis
 - Run game simulations to predict outcomes
 - Generate detailed DOCX reports with analysis and predictions
@@ -17,21 +17,27 @@ A web application that allows users to upload basketball statistics PDFs, analyz
 
 ```
 anona/
-├── app/                       # Main application code
-│   ├── main.py                # FastAPI application entry point
-│   ├── routers/               # API endpoints
-│   ├── services/              # Business logic
-│   └── database/              # Database connection and models
-├── static/                    # Static files for web interface
-├── templates/                 # HTML templates
-├── prompts/                   # Prompt templates for Claude 3.7
-├── terraform/                 # Terraform configuration for AWS deployment
-├── .github/workflows/         # GitHub Actions workflows
-├── docker-compose.yml         # Docker Compose configuration
-├── Dockerfile                 # Docker configuration
-├── DEPLOYMENT.md              # Deployment documentation
-├── requirements.txt           # Project dependencies
-└── README.md                  # Project documentation
+├── app/                            # Main application code
+│   ├── main.py                     # FastAPI application entry point
+│   ├── routers/                    # API endpoints
+│   ├── services/                   # Business logic
+│   ├── database/                   # Database connection and models
+│   ├── static/                     # Static files for web interface
+│   ├── templates/                  # HTML templates
+│   ├── data/                       # Sample input/output data
+│   │   ├── input_samples/          # Sample PDF input files
+│   │   └── output_samples/         # Sample generated reports
+│   ├── prompts/                    # Prompt templates for Claude
+│   └── tests/                      # Application tests
+├── data/                           # Additional data directory
+├── terraform/                      # Terraform configuration for AWS deployment
+├── docker-compose.yml              # Docker Compose configuration
+├── Dockerfile                      # Docker configuration
+├── docker-test.sh                  # Docker test script
+├── DEPLOYMENT.md                   # Deployment documentation
+├── aws-ecs-deployment.md           # AWS ECS specific deployment guide
+├── requirements.txt                # Project dependencies
+└── README.md                       # Project documentation
 ```
 
 ## Requirements
@@ -39,7 +45,7 @@ anona/
 - Python 3.12
 - FastAPI
 - Uvicorn
-- Anthropic API key (for Claude 3.7)
+- Anthropic API key (for Claude)
 - PostgreSQL database
 - Docker (for containerized deployment)
 - Terraform (for AWS deployment)
@@ -54,14 +60,23 @@ The easiest way to run the application is using Docker:
    cd <repository-directory>
    ```
 
-2. Create a `.env` file with your Anthropic API key:
+2. Create a `.env` file with required environment variables:
    ```
-   echo "ANTHROPICS_API_KEY=your_api_key_here" > .env
+   ANTHROPIC_API_KEY=your_api_key_here
+   DB_HOST=localhost
+   DB_NAME=anova
+   DB_USER=anova_user
+   DB_PASSWORD=your_secure_password
    ```
 
 3. Build and start the containers:
    ```
    docker-compose up --build
+   ```
+
+   For testing the Docker setup:
+   ```
+   ./docker-test.sh
    ```
 
 4. Access the application at http://localhost:8000
@@ -89,12 +104,16 @@ If you prefer to run the application without Docker:
    pip install -r requirements.txt
    ```
 
-4. Set up your Anthropic API key:
+4. Create a `.env` file with required environment variables:
    ```
-   echo "ANTHROPICS_API_KEY=your_api_key_here" > .env
+   ANTHROPIC_API_KEY=your_api_key_here
+   DB_HOST=localhost
+   DB_NAME=anova
+   DB_USER=anova_user
+   DB_PASSWORD=your_secure_password
    ```
 
-5. Set up a PostgreSQL database and update the connection settings in `.env`.
+5. Set up a PostgreSQL database with the credentials specified in your `.env` file.
 
 6. Start the application:
    ```
@@ -105,7 +124,13 @@ If you prefer to run the application without Docker:
 
 ## AWS Deployment
 
-The application can be deployed to AWS ECS using Terraform:
+The application can be deployed to AWS ECS using Terraform. Before proceeding, ensure you have:
+
+- AWS Account with appropriate permissions
+- AWS CLI installed and configured
+- Docker installed locally
+- ECR repository created for the application image
+- PostgreSQL RDS instance (can be created during deployment)
 
 1. Navigate to the terraform directory:
    ```
@@ -119,7 +144,9 @@ The application can be deployed to AWS ECS using Terraform:
    ./deploy.sh
    ```
 
-For more detailed AWS deployment instructions, see [terraform/README.md](terraform/README.md).
+For more detailed AWS deployment instructions, see:
+- [aws-ecs-deployment.md](aws-ecs-deployment.md) for ECS-specific deployment guide
+- [terraform/README.md](terraform/README.md) for Terraform configuration details
 
 ## Input Format
 
@@ -128,7 +155,7 @@ The application accepts PDF files containing basketball statistics in various fo
 - Individual player statistics
 - Combined statistics
 
-Sample PDF files can be found in the `data/input_samples` directory.
+Sample PDF files can be found in the `app/data/input_samples` directory.
 
 ## Output Format
 
@@ -140,15 +167,15 @@ The application generates a DOCX report with the following sections:
 - Opponent player analysis
 - Simulation results
 
-Sample output reports can be found in the `data/output_samples` directory.
+Sample output reports can be found in the `app/data/output_samples` directory.
 
 ## Development
 
 ### Adding New Features
 
-1. **Anthropic API Integration**: Modify `anthropic_api.py` to enhance PDF analysis or game simulation.
-2. **Prompts**: Update the prompt templates in the `prompts` directory to improve analysis quality.
-3. **Report Generation**: Update `report_gen.py` to include additional sections or formatting.
+1. **Anthropic API Integration**: Modify `app/services/anthropic_api.py` to enhance PDF analysis or game simulation.
+2. **Prompts**: Update the prompt templates in the `app/prompts` directory to improve analysis quality.
+3. **Report Generation**: Update `app/services/report_gen.py` to include additional sections or formatting.
 4. **Docker**: Update the Dockerfile or docker-compose.yml for container changes.
 5. **AWS Deployment**: Update the Terraform configuration for infrastructure changes.
 
@@ -156,6 +183,6 @@ Sample output reports can be found in the `data/output_samples` directory.
 
 Test the application with various PDF files to ensure robust extraction and analysis.
 
-## License
+## Contributing
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Contributions are welcome! Please feel free to submit a Pull Request.
