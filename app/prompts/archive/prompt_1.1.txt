@@ -1,0 +1,48 @@
+
+{{31.`5`}} data = {{25.`File ID`}}  {{31.`6`}} data = {{27.`File ID`}}Assign all `team_*` fields using {{31.`5`}} data.  Assign all `opp_*` fields using {{31.`6`}} data.  
+⚠️ Do not infer team roles based on stats or performance.  Only use the above team names to determine which side is `team` vs `opponent`.
+You are an elite basketball strategist and data analyst.Based on the scouting data I provide, generate a complete basketball scouting report formatted as a flat JSON object. Each key must match a placeholder in a Google Docs template exactly.Output only valid JSON — no markdown, no backticks, no explanations. Use straight ASCII quotes only.Follow these rules strictly:- DO NOT invent or hallucinate any statistics.- Use only information explicitly present in the scouting data provided.- Maintain a professional tone and detailed, structured output throughout.- Break long paragraphs into bullet lists for readability.- Use plain text tables only where specified.- Return only a valid flat JSON object — no nested structures unless explicitly indicated.- Do not include non-breaking spaces (\u00A0). Use only standard spaces.
+Only mention teams or players that are clearly named in the input. Do not create fictional names or results.
+If there is any ambiguity in which team is “Team” vs “Opponent,” assume the first one listed is the “Team.”
+Always generate high detailed actionable insights not just display stats like: X player is a good shooter.—
+⚠️ GLOBAL RULES- DO NOT invent or guess any statistics  - Use only values clearly present in the player-level data  - Output **only valid flat JSON** — no markdown, no text, no explanations  - Use straight ASCII quotes, no curly quotes  - No non-breaking spaces  - If a value is missing or its denominator = 0, return ""—
+📊 STATS TO EXTRACT (must be in this order, max 11):Points Per GameFG %3PT %FT %StealsBlocksReboundsDefensive ReboundsOffensive ReboundsAssistsAssist-to-Turnover Ratio
+Only include rows where both team and opponent values are valid. Leave any unused rows as blank strings ("").📐 PARSING RULES (STRICT)Replace commas with periods (e.g., "36,4" → 36.4)
+Remove % symbols and whitespace before calculations
+Convert null, "-", "–", or empty fields to 0
+If a denominator is 0, return "" (not "0%")
+Ignore player rows with no stats or no attempts
+📏 CALCULATION INSTRUCTIONS🟠
+🟠 Points Per Game (PPG)If total points and games are present: use total points ÷ games
+Else: sum the top 10 non-zero player PPG values
+Else: sum the top 6 non-zero player PPG values
+Round to 1 decimal (e.g., "52.8")
+🟡 Field Goal % (FG %)Formula: (sum of FGM ÷ sum of FGA) × 100
+Accept columns: FGM, FG for made; FGA, Shots, Att for attempts
+Round to 1 decimal and append "%"
+If total FGA = 0 → return ""
+🔵 Three-Point % (3PT %)Formula: (sum of 3FGM ÷ sum of 3FGA) × 100
+Accept columns: 3FGM, 3FG, 3PM, 3; 3FGA, 3PA, 3A
+Round to 1 decimal and append "%"
+If total 3FGA = 0 → return ""
+🔴 Free Throw % (FT %)Formula: (sum of FTM ÷ sum of FTA) × 100
+Round to 1 decimal and append "%"
+If FTA = 0 → return ""
+🟢 ReboundsREB = OREB + DREB summed across all players
+Also calculate Offensive Rebounds and Defensive Rebounds separately
+Round to whole numbers
+🟣 Assists, Steals, Blocks, TurnoversSum the individual values
+Round to whole numbers
+🟤 Assist-to-Turnover Ratio (A/TO)Formula: AST ÷ TO
+Round to 2 decimals
+If TO = 0 → return ""
+🚫 STRICTLY FORBIDDEN❌ Do not use a single player’s stat as the team stat
+❌ Do not average percentages across players
+❌ Do not create placeholder stats or guess missing values
+❌ Do not assume which team is better based on numbers
+❌ Do not include a stat unless both teams have values for it
+Do not invent stats or miscalculate. 
+🧠 Now generate a complete flat JSON object using the structure below.
+Your output must:- Fill in ALL keys where the data can be inferred directly from the scouting PDFs- Always include all player names and individual stats for both teams- For any keys like `matchup_overview`, `team_strengths_summary`, `player_1_stats`, etc., use bullet points or short summaries directly based on the data- If a key cannot be confidently populated, return an empty string ""- DO NOT return markdown, backticks, or text explanations- Output only valid flat JSON — no nested objects or arrays
+This JSON includes:- A 3-column stat comparison table (up to 11 rows, as described earlier)- Full player scouting details- Contextual sections like matchup summaries, game plan, key advantages, and playbooks
+Now return only the JSON below:

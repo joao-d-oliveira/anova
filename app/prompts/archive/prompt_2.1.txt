@@ -1,0 +1,232 @@
+Simulation Model
+// Team data based on season statistics
+const columbus{{31.`5`}} = {
+  name: "{{31.`5`}}",
+  record: "27-3",
+  ppg: 78.0,
+  rpg: 33.0,
+  apg: 18.5,
+  spg: 7.2,
+  bpg: 3.3,
+  tpg: 9.4,
+  fgPct: 0.57,
+  threePct: 0.39,
+  ftPct: 0.72
+};
+const dynamicPrep{{31.`6`}} = {
+  name: "Dynamic Prep{{31.`6`}}",
+  record: "31-4",
+  ppg: 72.8,
+  rpg: 30.4,
+  apg: 11.2,
+  spg: 3.9,
+  bpg: 3.7,
+  tpg: 5.7,
+  fgPct: 0.61,
+  threePct: 0.56,
+  ftPct: 0.79
+};
+/**
+ * Simulate a single basketball game between two teams
+ * @param {Team} teamA - First team
+ * @param {Team} teamB - Second team
+ * @returns {Object} Game result with scores, winner, margin, and statistical effects
+ */
+function simulateGame(teamA, teamB) {
+  // Start with actual scoring averages
+  let teamAScore = teamA.ppg;
+  let teamBScore = teamB.ppg;
+
+  // Calculate statistical advantages and their point impacts
+
+  // Rebounding advantage (each extra rebound = 0.7 points)
+  const reboundDiff = teamA.rpg - teamB.rpg;
+  const reboundEffect = reboundDiff * 0.7;
+
+  // Shooting efficiency advantages
+  const fgDiff = (teamA.fgPct - teamB.fgPct) * 100; // Convert to percentage points
+  const fgEffect = fgDiff * 0.25; // Each percentage point = 0.25 points
+
+  const threeDiff = (teamA.threePct - teamB.threePct) * 100;
+  const threeEffect = threeDiff * 0.15; // Each percentage point = 0.15 points
+
+  // Turnover differential (each fewer turnover = 1 point)
+  const turnoverDiff = teamB.tpg - teamA.tpg;
+  const turnoverEffect = turnoverDiff * 1.0;
+
+  // Assist differential (each extra assist = 0.5 points)
+  const assistDiff = teamA.apg - teamB.apg;
+  const assistEffect = assistDiff * 0.5;
+
+  // Defensive impact from steals and blocks
+  const stealsDiff = teamA.spg - teamB.spg;
+  const stealsEffect = stealsDiff * 1.0;
+
+  const blocksDiff = teamA.bpg - teamB.bpg;
+  const blocksEffect = blocksDiff * 0.8;
+
+  // Calculate total statistical effect
+  const totalEffect = reboundEffect + fgEffect + threeEffect + turnoverEffect +
+                      assistEffect + stealsEffect + blocksEffect;
+
+  // Apply the statistical advantage to Team A's score
+  teamAScore += totalEffect;
+
+  // Add random game variance (±12%)
+  const gameVarianceA = 0.88 + (Math.random() * 0.24);
+  const gameVarianceB = 0.88 + (Math.random() * 0.24);
+
+  teamAScore = teamAScore * gameVarianceA;
+  teamBScore = teamBScore * gameVarianceB;
+
+  // Round to integers for final scores
+  const finalTeamAScore = Math.round(teamAScore);
+  const finalTeamBScore = Math.round(teamBScore);
+
+  // Return detailed game result
+  return {
+    teamAScore: finalTeamAScore,
+    teamBScore: finalTeamBScore,
+    winner: finalTeamAScore > finalTeamBScore ? teamA.name : teamB.name,
+    margin: Math.abs(finalTeamAScore - finalTeamBScore),
+    effects: {
+      rebounding: Math.round(reboundEffect * 10) / 10,
+      fieldGoal: Math.round(fgEffect * 10) / 10,
+      threePoint: Math.round(threeEffect * 10) / 10,
+      turnovers: Math.round(turnoverEffect * 10) / 10,
+      assists: Math.round(assistEffect * 10) / 10,
+      steals: Math.round(stealsEffect * 10) / 10,
+      blocks: Math.round(blocksEffect * 10) / 10,
+      total: Math.round(totalEffect * 10) / 10
+    }
+  };
+}
+/**
+ * Run multiple simulations between two teams
+ * @param {Team} teamA - First team
+ * @param {Team} teamB - Second team
+ * @param {number} numSimulations - Number of simulations to run
+ * @returns {Object} Aggregated simulation results
+ */
+function runSimulations(teamA, teamB, numSimulations = 100) {
+  const results = [];
+  let teamAWins = 0;
+  let teamBWins = 0;
+  let totalPointsA = 0;
+  let totalPointsB = 0;
+  let closestGame = { margin: Infinity };
+  let blowoutGame = { margin: 0 };
+
+  // Effects tracking
+  const effectTotals = {
+    rebounding: 0,
+    fieldGoal: 0,
+    threePoint: 0,
+    turnovers: 0,
+    assists: 0,
+    steals: 0,
+    blocks: 0,
+    total: 0
+  };
+  // Run the specified number of simulations
+  for (let i = 0; i < numSimulations; i++) {
+    const gameResult = simulateGame(teamA, teamB);
+    results.push(gameResult);
+
+    // Track wins
+    if (gameResult.winner === teamA.name) {
+      teamAWins++;
+    } else {
+      teamBWins++;
+    }
+
+    // Track points
+    totalPointsA += gameResult.teamAScore;
+    totalPointsB += gameResult.teamBScore;
+
+    // Track closest game
+    if (gameResult.margin < closestGame.margin) {
+      closestGame = {...gameResult, gameNumber: i + 1};
+    }
+
+    // Track biggest blowout
+    if (gameResult.margin > blowoutGame.margin) {
+      blowoutGame = {...gameResult, gameNumber: i + 1};
+    }
+
+    // Track effect contributions
+    for (const effect in gameResult.effects) {
+      effectTotals[effect] += gameResult.effects[effect];
+    }
+  }
+  // Calculate average scores
+  const avgScoreA = Math.round(totalPointsA / numSimulations * 10) / 10;
+  const avgScoreB = Math.round(totalPointsB / numSimulations * 10) / 10;
+  // Calculate win percentage
+  const teamAWinPct = (teamAWins / numSimulations) * 100;
+  const teamBWinPct = (teamBWins / numSimulations) * 100;
+  // Calculate average effects
+  const avgEffects = {};
+  for (const effect in effectTotals) {
+    avgEffects[effect] = Math.round((effectTotals[effect] / numSimulations) * 10) / 10;
+  }
+  // Analyze the distribution of margins
+  const marginBuckets = {
+    "1-5 points": 0,
+    "6-10 points": 0,
+    "11-15 points": 0,
+    "16-20 points": 0,
+    "21+ points": 0
+  };
+  results.forEach(game => {
+    if (game.margin <= 5) marginBuckets["1-5 points"]++;
+    else if (game.margin <= 10) marginBuckets["6-10 points"]++;
+    else if (game.margin <= 15) marginBuckets["11-15 points"]++;
+    else if (game.margin <= 20) marginBuckets["16-20 points"]++;
+    else marginBuckets["21+ points"]++;
+  });
+
+  // Calculate margin distribution percentages
+  const marginDistribution = {};
+  for (const [range, count] of Object.entries(marginBuckets)) {
+    marginDistribution[range] = {
+      count,
+      percentage: Math.round((count / numSimulations) * 1000) / 10
+    };
+  }
+  // Return comprehensive simulation results
+  return {
+    numSimulations,
+    teamAWins,
+    teamBWins,
+    teamAWinPct: Math.round(teamAWinPct * 10) / 10,
+    teamBWinPct: Math.round(teamBWinPct * 10) / 10,
+    avgScoreA,
+    avgScoreB,
+    closestGame,
+    blowoutGame,
+    marginDistribution,
+    avgEffects
+  };
+}
+// Run the simulation
+const simulationResults = runSimulations(columbus, dynamicPrep, 100);
+// Display the results
+console.log(`Simulation Results: ${columbus.name} vs ${dynamicPrep.name}`);
+console.log(`Number of Simulations: ${simulationResults.numSimulations}`);
+console.log(`${columbus.name} Win Probability: ${simulationResults.teamAWinPct}%`);
+console.log(`${dynamicPrep.name} Win Probability: ${simulationResults.teamBWinPct}%`);
+console.log(`Average Score: ${columbus.name} ${simulationResults.avgScoreA} - ${dynamicPrep.name} ${simulationResults.avgScoreB}`);
+console.log(`\nKey Statistical Advantages (Points Impact):`);
+for (const [stat, value] of Object.entries(simulationResults.avgEffects)) {
+  if (stat !== 'total') {
+    console.log(`  ${stat}: ${value} points`);
+  }
+}
+console.log(`Net Advantage: ${simulationResults.avgEffects.total} points`);
+console.log(`\nMargin Distribution:`);
+for (const [range, data] of Object.entries(simulationResults.marginDistribution)) {
+  console.log(`  ${range}: ${data.count} games (${data.percentage}%)`);
+}
+console.log(`\nClosest Game: ${simulationResults.closestGame.teamAScore} - ${simulationResults.closestGame.teamBScore} (Margin: ${simulationResults.closestGame.margin})`);
+console.log(`Biggest Blowout: ${simulationResults.blowoutGame.teamAScore} - ${simulationResults.blowoutGame.teamBScore} (Margin: ${simulationResults.blowoutGame.margin})`);

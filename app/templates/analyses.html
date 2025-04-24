@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Analysis Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <style>
+        .analysis-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .team-names {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .analysis-details {
+            margin-top: 15px;
+        }
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .download-button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .download-button:hover {
+            background-color: #45a049;
+        }
+        .no-analyses {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .projected-score {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .win-probability {
+            font-size: 1.1rem;
+            margin: 10px 0;
+        }
+        .back-button {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .back-button:hover {
+            background-color: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Basketball Analysis Results</h1>
+        
+        <a href="/" class="back-button">Back to Upload</a>
+        
+        {% if analyses %}
+            {% for analysis in analyses %}
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="team-names">{{ analysis.home_team }} vs {{ analysis.away_team }}</div>
+                        <div class="timestamp">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    </div>
+                    
+                    <div class="analysis-details">
+                        {% if analysis.projected_score %}
+                            <div class="projected-score">Projected Score: {{ analysis.projected_score }}</div>
+                        {% endif %}
+                        
+                        {% if analysis.win_probability %}
+                            <div class="win-probability">{{ analysis.win_probability }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="download-buttons">
+                        {% if analysis.report_path %}
+                            <a href="/api/download-by-path?path={{ analysis.report_path }}" class="download-button">Download Full Analysis</a>
+                        {% endif %}
+                        
+                        {% if analysis.team_report_path %}
+                            <a href="/api/download-by-path?path={{ analysis.team_report_path }}" class="download-button">Download {{ analysis.home_team }} Analysis</a>
+                        {% endif %}
+                        
+                        {% if analysis.opponent_report_path %}
+                            <a href="/api/download-by-path?path={{ analysis.opponent_report_path }}" class="download-button">Download {{ analysis.away_team }} Analysis</a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-analyses">
+                <h2>No analyses found</h2>
+                <p>Upload PDF files to generate basketball analyses.</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+</body>
+</html>

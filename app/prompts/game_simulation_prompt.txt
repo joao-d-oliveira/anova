@@ -1,0 +1,104 @@
+You are an expert basketball analyst and simulator. I will provide you with analysis data for two basketball teams. Your task is to simulate a game between these teams and provide detailed simulation results.
+
+Please simulate a game between the teams and return a JSON object with the following structure:
+
+{
+    "sim_overall_summary": "",
+    "sim_success_factors": "",
+    "sim_key_matchups": "",
+    "sim_win_loss_patterns": "",
+    "win_probability": "",
+    "projected_score": "",
+    "team_p1_name": "",
+    "team_p1_ppg": "",
+    "team_p1_rpg": "",
+    "team_p1_apg": "",
+    "team_p1_fg": "",
+    "team_p1_3p": "",
+    "team_p1_role": "",
+    "team_p2_name": "",
+    "team_p2_ppg": "",
+    "team_p2_rpg": "",
+    "team_p2_apg": "",
+    "team_p2_fg": "",
+    "team_p2_3p": "",
+    "team_p2_role": "",
+    "team_p3_name": "",
+    "team_p3_ppg": "",
+    "team_p3_rpg": "",
+    "team_p3_apg": "",
+    "team_p3_fg": "",
+    "team_p3_3p": "",
+    "team_p3_role": "",
+    "team_p4_name": "",
+    "team_p4_ppg": "",
+    "team_p4_rpg": "",
+    "team_p4_apg": "",
+    "team_p4_fg": "",
+    "team_p4_3p": "",
+    "team_p4_role": "",
+    "team_p5_name": "",
+    "team_p5_ppg": "",
+    "team_p5_rpg": "",
+    "team_p5_apg": "",
+    "team_p5_fg": "",
+    "team_p5_3p": "",
+    "team_p5_role": "",
+    "opp_p1_name": "",
+    "opp_p1_ppg": "",
+    "opp_p1_rpg": "",
+    "opp_p1_apg": "",
+    "opp_p1_fg": "",
+    "opp_p1_3p": "",
+    "opp_p1_role": "",
+    "opp_p2_name": "",
+    "opp_p2_ppg": "",
+    "opp_p2_rpg": "",
+    "opp_p2_apg": "",
+    "opp_p2_fg": "",
+    "opp_p2_3p": "",
+    "opp_p2_role": "",
+    "opp_p3_name": "",
+    "opp_p3_ppg": "",
+    "opp_p3_rpg": "",
+    "opp_p3_apg": "",
+    "opp_p3_fg": "",
+    "opp_p3_3p": "",
+    "opp_p3_role": "",
+    "opp_p4_name": "",
+    "opp_p4_ppg": "",
+    "opp_p4_rpg": "",
+    "opp_p4_apg": "",
+    "opp_p4_fg": "",
+    "opp_p4_3p": "",
+    "opp_p4_role": "",
+    "opp_p5_name": "",
+    "opp_p5_ppg": "",
+    "opp_p5_rpg": "",
+    "opp_p5_apg": "",
+    "opp_p5_fg": "",
+    "opp_p5_3p": "",
+    "opp_p5_role": ""
+}
+
+Simulation guidelines:
+1. Run 100 simulated games between the two teams.
+2. For "sim_overall_summary", provide a 1-2 sentence summary of the simulation results, including the number of wins for each team and the average score.
+3. For "sim_success_factors", provide a bullet list (using "- ") of 3-5 key factors that contributed to each team's success in the simulations. Use "\n" for line breaks.
+4. For "sim_key_matchups", provide a bullet list of 3-5 critical player-vs-player or positional matchups that significantly impacted the game outcomes.
+5. For "sim_win_loss_patterns", provide a bullet list of 3-5 key patterns observed in the wins and losses (e.g., when Team A shoots over 45% from the field, they win 80% of the time).
+6. For "win_probability", provide a sentence stating the win probability for the team (e.g., "Team A has a 65% win probability based on 100 simulations.").
+7. For "projected_score", provide the average projected score (e.g., "Team A 78 - Team B 72").
+8. For player stats, use the top 5 players from each team based on their PPG (points per game).
+9. For player stats, provide realistic projections based on their season averages with some game-to-game variance.
+10. For player roles, provide a short phrase describing their role in the game (e.g., "Primary scorer and playmaker", "Defensive anchor", "Three-point specialist").
+
+Simulation model considerations:
+1. Consider team and player statistics such as PPG, FG%, 3FG%, FT%, REB, AST, STL, BLK, and TO.
+2. Factor in team strengths and weaknesses.
+3. Consider matchups between key players.
+4. Add appropriate game-to-game variance to make the simulations realistic.
+5. Consider home court advantage if specified.
+6. Consider team playing styles and how they match up against each other.
+
+Return only the JSON object without any additional text or explanation.
