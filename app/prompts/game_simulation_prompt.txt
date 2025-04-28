@@ -3,82 +3,82 @@ You are an expert basketball analyst and simulator. I will provide you with anal
 Please simulate a game between the teams and return a JSON object with the following structure:
 
 {
-    "sim_overall_summary": "",
-    "sim_success_factors": "",
-    "sim_key_matchups": "",
-    "sim_win_loss_patterns": "",
-    "win_probability": "",
-    "projected_score": "",
-    "team_p1_name": "",
-    "team_p1_ppg": "",
-    "team_p1_rpg": "",
-    "team_p1_apg": "",
-    "team_p1_fg": "",
-    "team_p1_3p": "",
-    "team_p1_role": "",
-    "team_p2_name": "",
-    "team_p2_ppg": "",
-    "team_p2_rpg": "",
-    "team_p2_apg": "",
-    "team_p2_fg": "",
-    "team_p2_3p": "",
-    "team_p2_role": "",
-    "team_p3_name": "",
-    "team_p3_ppg": "",
-    "team_p3_rpg": "",
-    "team_p3_apg": "",
-    "team_p3_fg": "",
-    "team_p3_3p": "",
-    "team_p3_role": "",
-    "team_p4_name": "",
-    "team_p4_ppg": "",
-    "team_p4_rpg": "",
-    "team_p4_apg": "",
-    "team_p4_fg": "",
-    "team_p4_3p": "",
-    "team_p4_role": "",
-    "team_p5_name": "",
-    "team_p5_ppg": "",
-    "team_p5_rpg": "",
-    "team_p5_apg": "",
-    "team_p5_fg": "",
-    "team_p5_3p": "",
-    "team_p5_role": "",
-    "opp_p1_name": "",
-    "opp_p1_ppg": "",
-    "opp_p1_rpg": "",
-    "opp_p1_apg": "",
-    "opp_p1_fg": "",
-    "opp_p1_3p": "",
-    "opp_p1_role": "",
-    "opp_p2_name": "",
-    "opp_p2_ppg": "",
-    "opp_p2_rpg": "",
-    "opp_p2_apg": "",
-    "opp_p2_fg": "",
-    "opp_p2_3p": "",
-    "opp_p2_role": "",
-    "opp_p3_name": "",
-    "opp_p3_ppg": "",
-    "opp_p3_rpg": "",
-    "opp_p3_apg": "",
-    "opp_p3_fg": "",
-    "opp_p3_3p": "",
-    "opp_p3_role": "",
-    "opp_p4_name": "",
-    "opp_p4_ppg": "",
-    "opp_p4_rpg": "",
-    "opp_p4_apg": "",
-    "opp_p4_fg": "",
-    "opp_p4_3p": "",
-    "opp_p4_role": "",
-    "opp_p5_name": "",
-    "opp_p5_ppg": "",
-    "opp_p5_rpg": "",
-    "opp_p5_apg": "",
-    "opp_p5_fg": "",
-    "opp_p5_3p": "",
-    "opp_p5_role": ""
+    "sim_overall_summary": "A 1-2 sentence summary of the simulation results, including the number of wins for each team and the average score",
+    "sim_success_factors": "A bullet list of 3-5 key factors that contributed to each team's success in the simulations",
+    "sim_key_matchups": "A bullet list of 3-5 critical player-vs-player or positional matchups that significantly impacted the game outcomes",
+    "sim_win_loss_patterns": "A bullet list of 3-5 key patterns observed in the wins and losses",
+    "win_probability": "The win probability for each team based on simulations (e.g., 'Team A has a 65% win probability')",
+    "projected_score": "The average projected score (e.g., 'Team A 78 - Team B 72')",
+    "team_p1_name": "Name of team's player 1",
+    "team_p1_ppg": "Projected points per game for team's player 1",
+    "team_p1_rpg": "Projected rebounds per game for team's player 1",
+    "team_p1_apg": "Projected assists per game for team's player 1",
+    "team_p1_fg": "Projected field goal percentage for team's player 1",
+    "team_p1_3p": "Projected three-point percentage for team's player 1",
+    "team_p1_role": "Role description for team's player 1 in the game",
+    "team_p2_name": "Name of team's player 2",
+    "team_p2_ppg": "Projected points per game for team's player 2",
+    "team_p2_rpg": "Projected rebounds per game for team's player 2",
+    "team_p2_apg": "Projected assists per game for team's player 2",
+    "team_p2_fg": "Projected field goal percentage for team's player 2",
+    "team_p2_3p": "Projected three-point percentage for team's player 2",
+    "team_p2_role": "Role description for team's player 2 in the game",
+    "team_p3_name": "Name of team's player 3",
+    "team_p3_ppg": "Projected points per game for team's player 3",
+    "team_p3_rpg": "Projected rebounds per game for team's player 3",
+    "team_p3_apg": "Projected assists per game for team's player 3",
+    "team_p3_fg": "Projected field goal percentage for team's player 3",
+    "team_p3_3p": "Projected three-point percentage for team's player 3",
+    "team_p3_role": "Role description for team's player 3 in the game",
+    "team_p4_name": "Name of team's player 4",
+    "team_p4_ppg": "Projected points per game for team's player 4",
+    "team_p4_rpg": "Projected rebounds per game for team's player 4",
+    "team_p4_apg": "Projected assists per game for team's player 4",
+    "team_p4_fg": "Projected field goal percentage for team's player 4",
+    "team_p4_3p": "Projected three-point percentage for team's player 4",
+    "team_p4_role": "Role description for team's player 4 in the game",
+    "team_p5_name": "Name of team's player 5",
+    "team_p5_ppg": "Projected points per game for team's player 5",
+    "team_p5_rpg": "Projected rebounds per game for team's player 5",
+    "team_p5_apg": "Projected assists per game for team's player 5",
+    "team_p5_fg": "Projected field goal percentage for team's player 5",
+    "team_p5_3p": "Projected three-point percentage for team's player 5",
+    "team_p5_role": "Role description for team's player 5 in the game",
+    "opp_p1_name": "Name of opponent's player 1",
+    "opp_p1_ppg": "Projected points per game for opponent's player 1",
+    "opp_p1_rpg": "Projected rebounds per game for opponent's player 1",
+    "opp_p1_apg": "Projected assists per game for opponent's player 1",
+    "opp_p1_fg": "Projected field goal percentage for opponent's player 1",
+    "opp_p1_3p": "Projected three-point percentage for opponent's player 1",
+    "opp_p1_role": "Role description for opponent's player 1 in the game",
+    "opp_p2_name": "Name of opponent's player 2",
+    "opp_p2_ppg": "Projected points per game for opponent's player 2",
+    "opp_p2_rpg": "Projected rebounds per game for opponent's player 2",
+    "opp_p2_apg": "Projected assists per game for opponent's player 2",
+    "opp_p2_fg": "Projected field goal percentage for opponent's player 2",
+    "opp_p2_3p": "Projected three-point percentage for opponent's player 2",
+    "opp_p2_role": "Role description for opponent's player 2 in the game",
+    "opp_p3_name": "Name of opponent's player 3",
+    "opp_p3_ppg": "Projected points per game for opponent's player 3",
+    "opp_p3_rpg": "Projected rebounds per game for opponent's player 3",
+    "opp_p3_apg": "Projected assists per game for opponent's player 3",
+    "opp_p3_fg": "Projected field goal percentage for opponent's player 3",
+    "opp_p3_3p": "Projected three-point percentage for opponent's player 3",
+    "opp_p3_role": "Role description for opponent's player 3 in the game",
+    "opp_p4_name": "Name of opponent's player 4",
+    "opp_p4_ppg": "Projected points per game for opponent's player 4",
+    "opp_p4_rpg": "Projected rebounds per game for opponent's player 4",
+    "opp_p4_apg": "Projected assists per game for opponent's player 4",
+    "opp_p4_fg": "Projected field goal percentage for opponent's player 4",
+    "opp_p4_3p": "Projected three-point percentage for opponent's player 4",
+    "opp_p4_role": "Role description for opponent's player 4 in the game",
+    "opp_p5_name": "Name of opponent's player 5",
+    "opp_p5_ppg": "Projected points per game for opponent's player 5",
+    "opp_p5_rpg": "Projected rebounds per game for opponent's player 5",
+    "opp_p5_apg": "Projected assists per game for opponent's player 5",
+    "opp_p5_fg": "Projected field goal percentage for opponent's player 5",
+    "opp_p5_3p": "Projected three-point percentage for opponent's player 5",
+    "opp_p5_role": "Role description for opponent's player 5 in the game"
 }
 
 Simulation guidelines:
@@ -93,12 +93,159 @@ Simulation guidelines:
 9. For player stats, provide realistic projections based on their season averages with some game-to-game variance.
 10. For player roles, provide a short phrase describing their role in the game (e.g., "Primary scorer and playmaker", "Defensive anchor", "Three-point specialist").
 
-Simulation model considerations:
-1. Consider team and player statistics such as PPG, FG%, 3FG%, FT%, REB, AST, STL, BLK, and TO.
-2. Factor in team strengths and weaknesses.
-3. Consider matchups between key players.
-4. Add appropriate game-to-game variance to make the simulations realistic.
-5. Consider home court advantage if specified.
-6. Consider team playing styles and how they match up against each other.
+Simulation model details and algorithm:
+
+1. Team statistics used in simulation:
+   - Points per game (PPG)
+   - Rebounds per game (RPG)
+   - Assists per game (APG)
+   - Steals per game (SPG)
+   - Blocks per game (BPG)
+   - Turnovers per game (TPG)
+   - Field goal percentage (FG%)
+   - Three-point percentage (3P%)
+   - Free throw percentage (FT%)
+
+2. Simulation algorithm pseudocode:
+function simulateGame(teamA, teamB): // Start with actual scoring averages teamAScore = teamA.ppg teamBScore = teamB.ppg
+
+ // Calculate statistical advantages and their point impacts
+ reboundDiff = teamA.rpg - teamB.rpg
+ reboundEffect = reboundDiff * 0.7
+ 
+ fgDiff = (teamA.fgPct - teamB.fgPct) * 100
+ fgEffect = fgDiff * 0.25
+ 
+ threeDiff = (teamA.threePct - teamB.threePct) * 100
+ threeEffect = threeDiff * 0.15
+ 
+ turnoverDiff = teamB.tpg - teamA.tpg
+ turnoverEffect = turnoverDiff * 1.0
+ 
+ assistDiff = teamA.apg - teamB.apg
+ assistEffect = assistDiff * 0.5
+ 
+ stealsDiff = teamA.spg - teamB.spg
+ stealsEffect = stealsDiff * 1.0
+ 
+ blocksDiff = teamA.bpg - teamB.bpg
+ blocksEffect = blocksDiff * 0.8
+ 
+ // Calculate total statistical effect
+ totalEffect = reboundEffect + fgEffect + threeEffect + turnoverEffect + 
+               assistEffect + stealsEffect + blocksEffect
+ 
+ // Apply the statistical advantage to Team A's score
+ teamAScore += totalEffect
+ 
+ // Add random game variance (±12%)
+ gameVarianceA = 0.88 + (random() * 0.24)
+ gameVarianceB = 0.88 + (random() * 0.24)
+ 
+ teamAScore = teamAScore * gameVarianceA
+ teamBScore = teamBScore * gameVarianceB
+ 
+ // Round to integers for final scores
+ finalTeamAScore = round(teamAScore)
+ finalTeamBScore = round(teamBScore)
+ 
+ return {
+   teamAScore: finalTeamAScore,
+   teamBScore: finalTeamBScore,
+   winner: finalTeamAScore > finalTeamBScore ? teamA.name : teamB.name,
+   margin: abs(finalTeamAScore - finalTeamBScore),
+   effects: {
+     rebounding: reboundEffect,
+     fieldGoal: fgEffect,
+     threePoint: threeEffect,
+     turnovers: turnoverEffect,
+     assists: assistEffect,
+     steals: stealsEffect,
+     blocks: blocksEffect,
+     total: totalEffect
+   }
+ }
+function runSimulations(teamA, teamB, numSimulations = 100): results = [] teamAWins = 0 teamBWins = 0 totalPointsA = 0 totalPointsB = 0
+
+ // Effects tracking
+ effectTotals = {
+   rebounding: 0,
+   fieldGoal: 0,
+   threePoint: 0,
+   turnovers: 0,
+   assists: 0,
+   steals: 0,
+   blocks: 0,
+   total: 0
+ }
+ 
+ // Run the specified number of simulations
+ for i = 0 to numSimulations-1:
+   gameResult = simulateGame(teamA, teamB)
+   results.push(gameResult)
+   
+   // Track wins
+   if gameResult.winner == teamA.name:
+     teamAWins++
+   else:
+     teamBWins++
+   
+   // Track points
+   totalPointsA += gameResult.teamAScore
+   totalPointsB += gameResult.teamBScore
+   
+   // Track effect contributions
+   for each effect in gameResult.effects:
+     effectTotals[effect] += gameResult.effects[effect]
+ 
+ // Calculate average scores
+ avgScoreA = round(totalPointsA / numSimulations * 10) / 10
+ avgScoreB = round(totalPointsB / numSimulations * 10) / 10
+ 
+ // Calculate win percentage
+ teamAWinPct = (teamAWins / numSimulations) * 100
+ teamBWinPct = (teamBWins / numSimulations) * 100
+ 
+ // Calculate average effects
+ avgEffects = {}
+ for each effect in effectTotals:
+   avgEffects[effect] = round(effectTotals[effect] / numSimulations * 10) / 10
+ 
+ return {
+   numSimulations,
+   teamAWins,
+   teamBWins,
+   teamAWinPct,
+   teamBWinPct,
+   avgScoreA,
+   avgScoreB,
+   avgEffects
+ }
+
+3. Statistical impact calculations:
+- Rebounding advantage: Each extra rebound = 0.7 points
+- Field goal efficiency: Each percentage point difference = 0.25 points
+- Three-point efficiency: Each percentage point difference = 0.15 points
+- Turnover differential: Each fewer turnover = 1.0 point
+- Assist differential: Each extra assist = 0.5 points
+- Steals differential: Each extra steal = 1.0 point
+- Blocks differential: Each extra block = 0.8 points
+
+4. Game variance application:
+- Random game variance of ±12% is applied to each team's score
+- This simulates the natural variability in team performance from game to game
+
+5. Simulation aggregation:
+- Track wins for each team across all simulations
+- Calculate average scores for both teams
+- Identify statistical factors that most impacted the outcomes
+- Analyze margin distribution (close games vs. blowouts)
+- Calculate win probability based on simulation results
+
+6. Additional considerations:
+- Home court advantage if specified
+- Team playing styles and matchup dynamics
+- Key player matchups and their impact
+- Team strengths and weaknesses
 
 Return only the JSON object without any additional text or explanation.
