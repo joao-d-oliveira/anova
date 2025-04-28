@@ -1,5 +1,6 @@
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = "anova"
 }
 
 # ECR Repository
@@ -126,7 +127,7 @@ resource "aws_db_instance" "postgres" {
   identifier             = "${var.app_name}-db"
   engine                 = "postgres"
   engine_version         = "14"
-  instance_class         = "db.t3.micro"
+  instance_class         = "db.t3.small"  # Upgraded from micro to small for better performance
   allocated_storage      = 20
   storage_type           = "gp2"
   db_name                = var.db_name
@@ -139,6 +140,22 @@ resource "aws_db_instance" "postgres" {
   skip_final_snapshot    = true
   backup_retention_period = 7
   deletion_protection    = false
+  parameter_group_name   = aws_db_parameter_group.postgres.name
+}
+
+# RDS Parameter Group
+resource "aws_db_parameter_group" "postgres" {
+  name   = "${var.app_name}-pg-params"
+  family = "postgres14"
+
+  parameter {
+    name         = "max_connections"
+    value        = "100"
+    apply_method = "pending-reboot"
+  }
+
+  # Removed shared_buffers parameter to use RDS default value
+  # RDS will automatically set shared_buffers based on instance memory
 }
 
 # ECS Task Definition
@@ -146,8 +163,8 @@ resource "aws_ecs_task_definition" "app" {
   family                   = var.app_name
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = "1024"  # Increased from 512 to 1024 (1 vCPU)
+  memory                   = "2048"  # Increased from 1024 to 2048 (2 GB)
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
@@ -193,6 +210,13 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-stream-prefix" = "ecs"
         }
       }
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60  # Give the application time to initialize the database
+      }
     }
   ])
 }
@@ -204,6 +228,12 @@ resource "aws_ecs_service" "app" {
   task_definition = aws_ecs_task_definition.app.arn
   desired_count   = var.app_count
   launch_type     = "FARGATE"
+  
+  # Enable deployment circuit breaker
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     security_groups  = [aws_security_group.ecs_tasks.id]
@@ -212,4 +242,49 @@ resource "aws_ecs_service" "app" {
   }
 
   depends_on = [aws_db_instance.postgres]
+}
+
+# Auto Scaling Target
+resource "aws_appautoscaling_target" "app" {
+  max_capacity       = 5
+  min_capacity       = var.app_count
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+# Auto Scaling Policy - CPU
+resource "aws_appautoscaling_policy" "cpu" {
+  name               = "${var.app_name}-cpu-autoscaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.app.resource_id
+  scalable_dimension = aws_appautoscaling_target.app.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.app.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+# Auto Scaling Policy - Memory
+resource "aws_appautoscaling_policy" "memory" {
+  name               = "${var.app_name}-memory-autoscaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.app.resource_id
+  scalable_dimension = aws_appautoscaling_target.app.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.app.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
 }

@@ -372,6 +372,7 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         team_analysis = analyze_team_pdf(team_file_path, is_our_team=True)
         print("-"*40)
         print("DEBUG - Team Analysis:", team_analysis)
+        print("-"*40, end="\n\n\n")
         
         # Step 2: Analyze opponent PDF
         processing_tasks[task_id]["current_step"] = 1
@@ -379,7 +380,8 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         opponent_analysis = analyze_team_pdf(opponent_file_path, is_our_team=False)
         print("-"*40)
         print("DEBUG - Opponent Analysis:", opponent_analysis)
-        
+        print("-" * 40, end="\n\n\n")
+
         # Override team names if provided
         if team_name:
             team_analysis["team_name"] = team_name

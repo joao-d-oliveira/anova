@@ -396,13 +396,13 @@ def add_simulation_results(doc: Document, simulation_results: Dict[str, Any]) ->
         
         if name:
             row_cells = team_table.add_row().cells
-            row_cells[0].text = name
-            row_cells[1].text = ppg
-            row_cells[2].text = rpg
-            row_cells[3].text = apg
-            row_cells[4].text = fg
-            row_cells[5].text = three_p
-            row_cells[6].text = role
+            row_cells[0].text = str(name)
+            row_cells[1].text = str(ppg)
+            row_cells[2].text = str(rpg)
+            row_cells[3].text = str(apg)
+            row_cells[4].text = str(fg)
+            row_cells[5].text = str(three_p)
+            row_cells[6].text = str(role)
             
             # Center align the cells
             for cell in row_cells:
@@ -443,53 +443,75 @@ def add_simulation_results(doc: Document, simulation_results: Dict[str, Any]) ->
         
         if name:
             row_cells = opp_table.add_row().cells
-            row_cells[0].text = name
-            row_cells[1].text = ppg
-            row_cells[2].text = rpg
-            row_cells[3].text = apg
-            row_cells[4].text = fg
-            row_cells[5].text = three_p
-            row_cells[6].text = role
+            row_cells[0].text = str(name)
+            row_cells[1].text = str(ppg)
+            row_cells[2].text = str(rpg)
+            row_cells[3].text = str(apg)
+            row_cells[4].text = str(fg)
+            row_cells[5].text = str(three_p)
+            row_cells[6].text = str(role)
             
             # Center align the cells
             for cell in row_cells:
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-def add_bullet_list(doc: Document, text: str) -> None:
+def add_bullet_list(doc: Document, text: Any) -> None:
     """
     Add a bullet list to the document
     
     Args:
         doc: Document object
         text: Text containing bullet points (each line starting with "- ")
+              Can also handle non-string types by converting them to strings
+              Can handle lists by adding each item as a bullet point
     """
     if not text:
         return
     
-    # Split text into lines
-    lines = text.split("\n")
-    
-    # Add each line as a bullet point
-    for line in lines:
-        # Remove leading "- " if present
-        line = line.strip()
-        if line.startswith("- "):
-            line = line[2:]
+    # Handle different types of input
+    if isinstance(text, str):
+        # Split text into lines
+        lines = text.split("\n")
         
-        # Add bullet point
-        if line:
-            p = doc.add_paragraph(line, style="List Bullet")
+        # Add each line as a bullet point
+        for line in lines:
+            # Remove leading "- " if present
+            line = line.strip()
+            if line.startswith("- "):
+                line = line[2:]
+            
+            # Add bullet point
+            if line:
+                p = doc.add_paragraph(line, style="List Bullet")
+    
+    elif isinstance(text, list):
+        # If it's a list, add each item as a bullet point
+        for item in text:
+            # Convert item to string if needed
+            item_str = str(item).strip()
+            if item_str:
+                p = doc.add_paragraph(item_str, style="List Bullet")
+    
+    else:
+        # For any other type, just add a single bullet point with the string representation
+        text_str = str(text).strip()
+        if text_str:
+            p = doc.add_paragraph(text_str, style="List Bullet")
 
-def add_formatted_text(doc: Document, text: str) -> None:
+def add_formatted_text(doc: Document, text: Any) -> None:
     """
     Add formatted text to the document
     
     Args:
         doc: Document object
-        text: Text to add
+        text: Text to add, can be any type (will be converted to string)
     """
     if not text:
         return
+    
+    # Convert to string if it's not already a string
+    if not isinstance(text, str):
+        text = str(text)
     
     # Split text into paragraphs
     paragraphs = text.split("\n\n")

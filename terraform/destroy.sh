@@ -80,6 +80,10 @@ if [ ! -z "$ECR_REPO_URL" ]; then
     echo -e "${YELLOW}Do you want to clean up local Docker images? (y/n)${NC}"
     read -r answer
     if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+        # Authenticate Docker to ECR (needed for some cleanup operations)
+        echo -e "${GREEN}Authenticating Docker to ECR...${NC}"
+        aws ecr get-login-password --region $AWS_REGION --profile anova | docker login --username AWS --password-stdin $ECR_REPO_URL 2>/dev/null || true
+        
         echo -e "${GREEN}Removing local Docker images...${NC}"
         docker rmi $ECR_REPO_URL:latest basketball-analysis:latest 2>/dev/null || true
         echo -e "${GREEN}Local Docker images removed.${NC}"
@@ -89,3 +93,9 @@ fi
 echo -e "${GREEN}All AWS resources have been destroyed successfully.${NC}"
 echo "=================================================================="
 echo -e "${YELLOW}Destroy operation completed.${NC}"
+
+# Remind users about the get_app_url.sh script
+if [ -f "get_app_url.sh" ]; then
+    echo -e "${YELLOW}Note: The get_app_url.sh script is still available locally.${NC}"
+    echo -e "${YELLOW}It will no longer work since the resources have been destroyed.${NC}"
+fi

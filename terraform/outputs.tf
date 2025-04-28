@@ -33,7 +33,22 @@ output "cloudwatch_log_group" {
   value       = aws_cloudwatch_log_group.app.name
 }
 
-output "app_url" {
-  description = "URL to access the application (requires additional setup for public access)"
-  value       = "http://${aws_ecs_service.app.name}.${var.aws_region}.amazonaws.com:${var.container_port}"
+output "aws_region" {
+  description = "The AWS region where resources are deployed"
+  value       = var.aws_region
+}
+
+output "app_url_info" {
+  description = "Information on how to access the application"
+  value       = "The application is accessible at http://<task-public-ip>:${var.container_port}"
+}
+
+output "get_app_host_command" {
+  description = "Command to get the current host IP address of the application"
+  value       = "aws --profile anova --region ${var.aws_region} ec2 describe-network-interfaces --filters Name=description,Values='*${aws_ecs_cluster.main.name}*' --query 'NetworkInterfaces[?Status==`in-use`].Association.PublicIp' --output text"
+}
+
+output "access_app_command" {
+  description = "One-liner command to get and open the application URL"
+  value       = "open http://$(aws --profile anova --region ${var.aws_region} ec2 describe-network-interfaces --filters Name=description,Values='*${aws_ecs_cluster.main.name}*' --query 'NetworkInterfaces[?Status==`in-use`].Association.PublicIp' --output text):${var.container_port}"
 }
