@@ -64,7 +64,8 @@ async def upload_files(
     team_files: UploadFile = File(...),
     opponent_files: UploadFile = File(...),
     team_name: Optional[str] = Form(None),
-    opponent_name: Optional[str] = Form(None)
+    opponent_name: Optional[str] = Form(None),
+    use_local_simulation: Optional[bool] = Form(False)
 ):
     """
     Upload PDF files for analysis - one for our team and one for the opponent
@@ -116,7 +117,8 @@ async def upload_files(
         task_id, 
         file_paths, 
         team_name, 
-        opponent_name
+        opponent_name,
+        use_local_simulation
     )
     
     return {"task_id": task_id, "status": "processing"}
@@ -348,7 +350,7 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
     
     return report_path
 
-async def process_files(task_id: str, file_paths: List[str], team_name: Optional[str], opponent_name: Optional[str]):
+async def process_files(task_id: str, file_paths: List[str], team_name: Optional[str], opponent_name: Optional[str], use_local_simulation: bool = False):
     """
     Process uploaded PDF files and generate a report
     """
@@ -455,7 +457,7 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             # Step 6: Simulate game
             processing_tasks[task_id]["current_step"] = 5
             processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
-            simulation_results = simulate_game(team_analysis, opponent_analysis)
+            simulation_results = simulate_game(team_analysis, opponent_analysis, use_local=use_local_simulation)
             print("-"*40)
             print("DEBUG - Simulation Results:", simulation_results)
             

@@ -6,13 +6,16 @@ import json
 # Base URL of the API
 BASE_URL = "http://127.0.0.1:8000"
 
-def test_upload():
+def run_upload_test(use_local_simulation: bool = False):
     """
     Test the upload endpoint with the PDF files from data/input_samples
+    
+    Args:
+        use_local_simulation: Whether to use local statistical simulation instead of AI
     """
     # Paths to the PDF files
-    team_file_path = "data/input_samples/SCARSDALE Last 5 games individual stats.pdf"
-    opponent_file_path = "data/input_samples/ARLINGTON Last 5 games INDIVIDUAL stats.pdf"
+    team_file_path = "../data/input_samples/SCARSDALE Last 5 games individual stats.pdf"
+    opponent_file_path = "../data/input_samples/ARLINGTON Last 5 games INDIVIDUAL stats.pdf"
     
     # Check if the files exist
     if not os.path.exists(team_file_path):
@@ -31,7 +34,8 @@ def test_upload():
     
     data = {
         "team_name": "Scarsdale",
-        "opponent_name": "Arlington"
+        "opponent_name": "Arlington",
+        "use_local_simulation": use_local_simulation
     }
     
     try:
@@ -111,6 +115,16 @@ def test_upload():
     
     except Exception as e:
         print(f"Error: {e}")
+
+def test_upload():
+    """
+    Run tests for both AI and local simulation methods
+    """
+    print("\n=== Testing AI-based simulation ===")
+    run_upload_test(use_local_simulation=False)
+    
+    print("\n=== Testing local statistical simulation ===")
+    run_upload_test(use_local_simulation=True)
 
 if __name__ == "__main__":
     test_upload()
