@@ -84,7 +84,7 @@ read -r answer
 if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     # Authenticate Docker to ECR
     echo -e "${GREEN}Authenticating Docker to ECR...${NC}"
-    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URL
+    aws ecr get-login-password --region $AWS_REGION --profile anova | docker login --username AWS --password-stdin $ECR_REPO_URL
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Docker authentication to ECR failed.${NC}"
@@ -134,6 +134,13 @@ echo -e "CloudWatch Log Group: ${GREEN}$(terraform output -raw cloudwatch_log_gr
 
 echo -e "${YELLOW}Note: The application may take a few minutes to start up.${NC}"
 echo -e "${YELLOW}You can check the status of the ECS service in the AWS Console.${NC}"
+
+echo -e "${YELLOW}To access the application:${NC}"
+echo -e "Run this command to get the host IP address:"
+echo -e "   ${GREEN}$(terraform output -raw get_app_host_command)${NC}"
+echo -e "Then access the application at: http://<host-ip>:$(terraform output -raw container_port 2>/dev/null || echo "8000")"
+echo -e "Or use this one-liner to open the application directly:"
+echo -e "   ${GREEN}$(terraform output -raw access_app_command)${NC}"
 
 echo "=================================================================="
 echo -e "${YELLOW}Deployment completed.${NC}"

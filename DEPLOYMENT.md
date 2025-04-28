@@ -1,128 +1,158 @@
-# Deployment Guide for Basketball PDF Analysis Pipeline
+# Deployment Guide for Basketball Analysis Application
 
-This guide provides instructions for deploying the Basketball PDF Analysis Pipeline using Docker and AWS Elastic Container Service (ECS).
+This guide provides instructions for deploying the Basketball PDF Analysis Pipeline to AWS Elastic Container Service (ECS) using Terraform.
 
-## Local Deployment with Docker
+## Prerequisites
 
-### Prerequisites
+- AWS Account with appropriate permissions
+- AWS CLI installed and configured
+- Terraform installed
+- Docker installed locally
 
-- Docker installed
-- Docker Compose installed
-- Anthropic API key
+## Configuration
 
-### Quick Start
+1. Update the `terraform/terraform.tfvars` file with your specific values:
 
-1. Clone the repository:
-   ```
-   git clone <repository-url>
-   cd <repository-directory>
-   ```
-
-2. Create a `.env` file with your Anthropic API key:
-   ```
-   echo "ANTHROPICS_API_KEY=your_api_key_here" > .env
-   ```
-
-3. Build and start the containers:
-   ```
-   docker-compose up --build
-   ```
-
-4. Access the application at http://localhost:8000
-
-### Testing the Docker Setup
-
-We've included a script to test the Docker setup:
-
-```bash
-./docker-test.sh
+```hcl
+aws_region          = "us-east-1"
+vpc_id              = "vpc-xxxxxxxxxxxxxxxxx"
+subnet_ids          = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-yyyyyyyyyyyyyyyyy"]
+db_password         = "your-secure-password"
+anthropic_api_key   = "your-anthropic-api-key"
 ```
 
-This script will:
-- Check if Docker and Docker Compose are installed
-- Create a sample .env file if one doesn't exist
-- Build and start the containers
-- Test if the application is accessible
-- Provide instructions for stopping the containers
+## Deployment Steps
 
-### Docker Compose Configuration
+### 1. Build and Push Docker Image
 
-The `docker-compose.yml` file includes:
+1. Build the Docker image:
 
-- **app**: The main application container
-  - Built from the Dockerfile
-  - Exposes port 8000
-  - Connects to the PostgreSQL database
-  - Uses environment variables for configuration
+```bash
+docker build -t basketball-analysis .
+```
 
-- **db**: PostgreSQL database container
-  - Uses the official PostgreSQL 14 image
-  - Exposes port 5432
-  - Stores data in a named volume
+2. Authenticate Docker to your ECR registry:
 
-### Environment Variables
+```bash
+aws ecr get-login-password --region $(terraform output -raw aws_region) | docker login --username AWS --password-stdin $(terraform output -raw ecr_repository_url)
+```
 
-The application uses the following environment variables:
+3. Tag and push the image:
 
-- `DB_HOST`: Database hostname (default: "localhost")
-- `DB_NAME`: Database name (default: "anova")
-- `DB_USER`: Database username (default: "anova_user")
-- `DB_PASSWORD`: Database password (default: "anova@bask3t")
-- `ANTHROPICS_API_KEY`: Your Anthropic API key (required)
+```bash
+docker tag basketball-analysis:latest $(terraform output -raw ecr_repository_url):latest
+docker push $(terraform output -raw ecr_repository_url):latest
+```
 
-### Technical Details
+### 2. Deploy Infrastructure with Terraform
 
-- Python 3.12 is used as the base image for the Docker container
-- PostgreSQL 14 is used for the database
-- The application runs on port 8000
+1. Initialize Terraform:
 
-## AWS ECS Deployment
+```bash
+cd terraform
+terraform init
+```
 
-We provide two options for deploying to AWS ECS:
+2. Plan the deployment:
 
-### Option 1: Manual Deployment
+```bash
+terraform plan -out=tfplan
+```
 
-For detailed instructions on manually deploying to AWS ECS, see [aws-ecs-deployment.md](aws-ecs-deployment.md).
+3. Apply the deployment:
 
-### Option 2: Terraform Deployment (Recommended)
+```bash
+terraform apply tfplan
+```
 
-For automated infrastructure deployment using Terraform, see [terraform/README.md](terraform/README.md).
+### 3. Verify Deployment
 
-The Terraform configuration:
-- Creates an ECR repository for the Docker image
-- Sets up an ECS cluster
-- Creates a PostgreSQL RDS instance
-- Configures security groups and IAM roles
-- Deploys the application as an ECS service
-- Sets up CloudWatch logging
+1. Check the ECS service status:
 
-#### Key Steps for Terraform Deployment
+```bash
+aws ecs describe-services --cluster $(terraform output -raw ecs_cluster_name) --services $(terraform output -raw ecs_service_name) --region $(terraform output -raw aws_region)
+```
 
-1. Configure your AWS credentials
-2. Update the Terraform variables
-3. Run `terraform apply` to create the infrastructure
-4. Build and push the Docker image to ECR
-5. Access the application
+2. Get the public IP of the ECS task:
 
-For detailed instructions, see the [Terraform README](terraform/README.md).
+```bash
+aws ecs list-tasks --cluster $(terraform output -raw ecs_cluster_name) --service-name $(terraform output -raw ecs_service_name) --region $(terraform output -raw aws_region) --query 'taskArns[0]' --output text | xargs aws ecs describe-tasks --cluster $(terraform output -raw ecs_cluster_name) --region $(terraform output -raw aws_region) --tasks --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' --output text | xargs aws ec2 describe-network-interfaces --region $(terraform output -raw aws_region) --network-interface-ids --query 'NetworkInterfaces[0].Association.PublicIp' --output text
+```
+
+3. Access the application at `http://<public-ip>:8000`
+
+## Application Features
+
+The deployed application includes:
+
+- Automatic database initialization with the correct schema
+- Auto-scaling based on CPU and memory utilization
+- Health checks to ensure application availability
+- CloudWatch logging for monitoring and troubleshooting
+
+## Infrastructure Components
+
+The deployment includes:
+
+1. **ECS Cluster**: Fargate-based cluster for running containerized applications
+2. **RDS PostgreSQL**: Database for storing analysis results and game simulations
+3. **ECR Repository**: For storing Docker images
+4. **CloudWatch Logs**: For application logging
+5. **Auto Scaling**: To handle varying loads
+
+## Database Schema
+
+The application automatically initializes the database with the correct schema, including:
+
+- Teams table
+- Players table
+- Games table
+- Game simulations table with appropriate column sizes for storing analysis results
+
+## Monitoring and Maintenance
+
+### Logs
+
+View application logs in CloudWatch:
+
+```bash
+aws logs get-log-events --log-group-name "/ecs/basketball-analysis" --log-stream-name $(aws logs describe-log-streams --log-group-name "/ecs/basketball-analysis" --order-by LastEventTime --descending --limit 1 --query 'logStreams[0].logStreamName' --output text) --region $(terraform output -raw aws_region)
+```
+
+### Scaling
+
+The application automatically scales based on:
+- CPU utilization (target: 70%)
+- Memory utilization (target: 70%)
+
+Maximum capacity: 5 instances
+Minimum capacity: 1 instance (configurable)
+
+### Database Backups
+
+RDS automatically creates backups with a 7-day retention period.
+
+## Cleanup
+
+To destroy all resources when no longer needed:
+
+```bash
+cd terraform
+terraform destroy
+```
 
 ## Troubleshooting
 
-### Common Docker Issues
+### Common Issues
 
-- **Database connection errors**: Ensure the database container is running and the environment variables are correctly set.
-- **Port conflicts**: If port 8000 or 5432 is already in use, modify the port mappings in `docker-compose.yml`.
-- **Permission issues**: Ensure the temp directories have appropriate permissions.
+1. **Database Connection Issues**:
+   - Check security group rules
+   - Verify database credentials in ECS task definition
 
-### Common AWS ECS Issues
+2. **Application Startup Failures**:
+   - Check CloudWatch logs for error messages
+   - Verify that the entrypoint script has execute permissions
 
-- **Task failures**: Check CloudWatch Logs for application errors.
-- **Database connectivity**: Verify security group settings allow traffic between ECS tasks and RDS.
-- **Environment variables**: Ensure all required environment variables are set in the task definition.
-
-## Security Considerations
-
-- Store sensitive information like database credentials and API keys as environment variables.
-- For production deployments, use AWS Secrets Manager or Parameter Store for sensitive values.
-- Configure security groups to restrict access to only necessary ports and services.
-- Use HTTPS for production deployments.
+3. **Auto-scaling Issues**:
+   - Check CloudWatch metrics for CPU and memory utilization
+   - Verify auto-scaling policies and targets

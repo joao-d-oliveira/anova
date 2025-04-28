@@ -82,11 +82,53 @@ docker push $(terraform output -raw ecr_repository_url):latest
 
 ## Accessing the Application
 
-After deployment, the application will be running on ECS but won't be publicly accessible by default. To access it, you have several options:
+After deployment, the application will be accessible via the public IP address of the ECS task. There are several ways to get this information:
 
-1. Set up an Application Load Balancer (ALB) to route traffic to the ECS service
-2. Use AWS App Runner for a simpler deployment with built-in load balancing
-3. Use AWS CloudFront with an ALB for a CDN-enabled setup
+### Using the Provided Script
+
+We've included a convenient script to get the application URL:
+
+```bash
+cd terraform
+./get_app_url.sh
+```
+
+This script will:
+1. Get the public IP address of the running ECS task
+2. Display the full application URL
+3. Offer to open the URL in your default browser
+
+### Using AWS CLI Commands
+
+You can also get the application URL manually using AWS CLI commands:
+
+```bash
+# Get the public IP address of the running task
+PUBLIC_IP=$(aws --profile anova --region $(terraform output -raw aws_region) ec2 describe-network-interfaces --filters Name=description,Values="*$(terraform output -raw ecs_cluster_name)*" --query 'NetworkInterfaces[?Status==`in-use`].Association.PublicIp' --output text)
+
+# Construct the application URL
+echo "http://${PUBLIC_IP}:$(terraform output -raw container_port 2>/dev/null || echo "8000")"
+```
+
+### Using Terraform Outputs
+
+After running `terraform apply`, you can use the provided outputs:
+
+```bash
+# Get the command to retrieve the application host IP
+terraform output -raw get_app_host_command
+
+# Get the one-liner command to open the application in your browser
+terraform output -raw access_app_command
+```
+
+### For Production Use
+
+For a more permanent solution, consider:
+
+1. Setting up an Application Load Balancer (ALB) to route traffic to the ECS service
+2. Using AWS App Runner for a simpler deployment with built-in load balancing
+3. Using AWS CloudFront with an ALB for a CDN-enabled setup
 
 ## Cleaning Up
 

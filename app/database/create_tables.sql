@@ -113,8 +113,8 @@ CREATE TABLE IF NOT EXISTS team_analysis (
 CREATE TABLE IF NOT EXISTS game_simulations (
     id SERIAL PRIMARY KEY,
     game_id INTEGER REFERENCES games(id),
-    win_probability VARCHAR(50),
-    projected_score VARCHAR(50),
+    win_probability VARCHAR(100),
+    projected_score VARCHAR(100),
     sim_overall_summary TEXT,
     sim_success_factors TEXT,
     sim_key_matchups TEXT,
