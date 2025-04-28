@@ -44,6 +44,16 @@
                                     <label for="opponent_name" class="form-label">Opponent Name (Optional)</label>
                                     <input type="text" class="form-control" id="opponent_name" name="opponent_name" placeholder="e.g., Arlington">
                                 </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="use_local_simulation" name="use_local_simulation">
+                                        <label class="form-check-label" for="use_local_simulation">
+                                            Use Local Statistical Simulation
+                                        </label>
+                                        <div class="form-text">When checked, uses a local statistical algorithm instead of AI for game simulation.</div>
+                                    </div>
+                                </div>
                                 
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-primary" id="upload-button">Upload and Analyze</button>

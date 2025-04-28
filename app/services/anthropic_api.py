@@ -1,7 +1,9 @@
 import os
 import base64
 import json
+import random
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 import anthropic
 from dotenv import load_dotenv
 
@@ -24,6 +26,34 @@ def encode_pdf_to_base64(file_path: str) -> str:
     with open(file_path, "rb") as pdf_file:
         encoded_string = base64.b64encode(pdf_file.read()).decode("utf-8")
     return encoded_string
+
+def save_analysis_json(analysis: Dict[str, Any], team_name: str, is_our_team: bool) -> str:
+    """
+    Save team analysis to a JSON file
+    
+    Args:
+        analysis: Dictionary containing team analysis
+        team_name: Name of the team
+        is_our_team: Whether this is our team or opponent
+        
+    Returns:
+        Path to the saved JSON file
+    """
+    # Create directory if it doesn't exist
+    json_dir = "app/data/analysis_json"
+    os.makedirs(json_dir, exist_ok=True)
+    
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    team_type = "team" if is_our_team else "opponent"
+    filename = f"{team_name}_{team_type}_analysis_{timestamp}.json"
+    file_path = os.path.join(json_dir, filename)
+    
+    # Save analysis to JSON file
+    with open(file_path, "w") as f:
+        json.dump(analysis, f, indent=2)
+    
+    return file_path
 
 def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) -> Dict[str, Any]:
     """
@@ -48,7 +78,7 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
     # Create message with PDF attachment
     message = client.messages.create(
         model="claude-3-7-sonnet-20250219",
-        max_tokens=4000,
+        max_tokens=8000,
         temperature=0.0,
         system=f"You are an expert basketball analyst. You are analyzing a PDF containing basketball statistics for a {'team' if is_our_team else 'opponent team'}.",
         messages=[
@@ -79,12 +109,14 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
         json_start = response_text.find('{')
         json_end = response_text.rfind('}') + 1
         
-        if json_start >= 0 and json_end > json_start:
+        if 0 <= json_start < json_end:
             json_str = response_text[json_start:json_end]
             analysis = json.loads(json_str)
             
             # Post-process to ensure team stats are populated
             analysis = post_process_team_stats(analysis)
+            team_name = analysis.get("team_name", "Unknown Team")
+            save_analysis_json(analysis, team_name, is_our_team)
             
             return analysis
         else:
@@ -160,9 +192,9 @@ def post_process_team_stats(analysis: Dict[str, Any]) -> Dict[str, Any]:
     
     return analysis
 
-def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, Any]) -> Dict[str, Any]:
+def simulate_game_locally(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Simulate a game between two teams using Claude 3.7 Anthropic API
+    Simulate a game between two teams using local statistical calculations
     
     Args:
         team_analysis: Dictionary containing our team analysis
@@ -171,6 +203,254 @@ def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, An
     Returns:
         Dictionary containing simulation results
     """
+    # Extract team stats
+    team_stats = team_analysis.get("team_stats", {})
+    opponent_stats = opponent_analysis.get("team_stats", {})
+    
+    # Helper function to convert string or number to float
+    def to_float(value: Any) -> float:
+        if isinstance(value, str):
+            # Remove % if present and convert to float
+            return float(value.rstrip('%')) if '%' in value else float(value)
+        return float(value) if value is not None else 0.0
+
+    # Map stats to simulation variables
+    teamA = {
+        "name": team_analysis.get("team_name", "Team A"),
+        "ppg": to_float(team_stats.get("PPG", 0)),
+        "rpg": to_float(team_stats.get("REB", 0)),
+        "fgPct": to_float(team_stats.get("FG%", 0)) / 100,
+        "threePct": to_float(team_stats.get("3P%", 0)) / 100,
+        "tpg": to_float(team_stats.get("TO", 0)),
+        "apg": to_float(team_stats.get("AST", 0)),
+        "spg": to_float(team_stats.get("STL", 0)),
+        "bpg": to_float(team_stats.get("BLK", 0))
+    }
+    
+    teamB = {
+        "name": opponent_analysis.get("team_name", "Team B"),
+        "ppg": to_float(opponent_stats.get("PPG", 0)),
+        "rpg": to_float(opponent_stats.get("REB", 0)),
+        "fgPct": to_float(opponent_stats.get("FG%", 0)) / 100,
+        "threePct": to_float(opponent_stats.get("3P%", 0)) / 100,
+        "tpg": to_float(opponent_stats.get("TO", 0)),
+        "apg": to_float(opponent_stats.get("AST", 0)),
+        "spg": to_float(opponent_stats.get("STL", 0)),
+        "bpg": to_float(opponent_stats.get("BLK", 0))
+    }
+    
+    # Run simulations
+    return runSimulations(teamA, teamB, 100)
+
+def simulateGame(teamA: Dict[str, Any], teamB: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Simulate a single basketball game between two teams
+    
+    Args:
+        teamA: First team's statistics
+        teamB: Second team's statistics
+        
+    Returns:
+        Dictionary containing game result with scores, winner, margin, and statistical effects
+    """
+    # Start with actual scoring averages
+    teamAScore = teamA["ppg"]
+    teamBScore = teamB["ppg"]
+
+    # Calculate statistical advantages and their point impacts
+    # Rebounding advantage (each extra rebound = 0.7 points)
+    reboundDiff = teamA["rpg"] - teamB["rpg"]
+    reboundEffect = reboundDiff * 0.7
+
+    # Shooting efficiency advantages
+    fgDiff = (teamA["fgPct"] - teamB["fgPct"]) * 100  # Convert to percentage points
+    fgEffect = fgDiff * 0.25  # Each percentage point = 0.25 points
+
+    threeDiff = (teamA["threePct"] - teamB["threePct"]) * 100
+    threeEffect = threeDiff * 0.15  # Each percentage point = 0.15 points
+
+    # Turnover differential (each fewer turnover = 1 point)
+    turnoverDiff = teamB["tpg"] - teamA["tpg"]
+    turnoverEffect = turnoverDiff * 1.0
+
+    # Assist differential (each extra assist = 0.5 points)
+    assistDiff = teamA["apg"] - teamB["apg"]
+    assistEffect = assistDiff * 0.5
+
+    # Defensive impact from steals and blocks
+    stealsDiff = teamA["spg"] - teamB["spg"]
+    stealsEffect = stealsDiff * 1.0
+
+    blocksDiff = teamA["bpg"] - teamB["bpg"]
+    blocksEffect = blocksDiff * 0.8
+
+    # Calculate total statistical effect
+    totalEffect = (reboundEffect + fgEffect + threeEffect + turnoverEffect +
+                  assistEffect + stealsEffect + blocksEffect)
+
+    # Apply the statistical advantage to Team A's score
+    teamAScore += totalEffect
+
+    # Add random game variance (±12%)
+    gameVarianceA = 0.88 + (random.random() * 0.24)
+    gameVarianceB = 0.88 + (random.random() * 0.24)
+
+    teamAScore = teamAScore * gameVarianceA
+    teamBScore = teamBScore * gameVarianceB
+
+    # Round to integers for final scores
+    finalTeamAScore = round(teamAScore)
+    finalTeamBScore = round(teamBScore)
+
+    # Return detailed game result
+    return {
+        "teamAScore": finalTeamAScore,
+        "teamBScore": finalTeamBScore,
+        "winner": teamA["name"] if finalTeamAScore > finalTeamBScore else teamB["name"],
+        "margin": abs(finalTeamAScore - finalTeamBScore),
+        "effects": {
+            "rebounding": round(reboundEffect * 10) / 10,
+            "fieldGoal": round(fgEffect * 10) / 10,
+            "threePoint": round(threeEffect * 10) / 10,
+            "turnovers": round(turnoverEffect * 10) / 10,
+            "assists": round(assistEffect * 10) / 10,
+            "steals": round(stealsEffect * 10) / 10,
+            "blocks": round(blocksEffect * 10) / 10,
+            "total": round(totalEffect * 10) / 10
+        }
+    }
+
+def runSimulations(teamA: Dict[str, Any], teamB: Dict[str, Any], numSimulations: int = 100) -> Dict[str, Any]:
+    """
+    Run multiple simulations between two teams
+    
+    Args:
+        teamA: First team's statistics
+        teamB: Second team's statistics
+        numSimulations: Number of simulations to run
+        
+    Returns:
+        Dictionary containing aggregated simulation results
+    """
+    results = []
+    teamAWins = 0
+    teamBWins = 0
+    totalPointsA = 0
+    totalPointsB = 0
+    closestGame = {"margin": float('inf')}
+    blowoutGame = {"margin": 0}
+
+    # Effects tracking
+    effectTotals = {
+        "rebounding": 0,
+        "fieldGoal": 0,
+        "threePoint": 0,
+        "turnovers": 0,
+        "assists": 0,
+        "steals": 0,
+        "blocks": 0,
+        "total": 0
+    }
+
+    # Run the specified number of simulations
+    for i in range(numSimulations):
+        gameResult = simulateGame(teamA, teamB)
+        results.append(gameResult)
+
+        # Track wins
+        if gameResult["winner"] == teamA["name"]:
+            teamAWins += 1
+        else:
+            teamBWins += 1
+
+        # Track points
+        totalPointsA += gameResult["teamAScore"]
+        totalPointsB += gameResult["teamBScore"]
+
+        # Track closest game
+        if gameResult["margin"] < closestGame["margin"]:
+            closestGame = {**gameResult, "gameNumber": i + 1}
+
+        # Track biggest blowout
+        if gameResult["margin"] > blowoutGame["margin"]:
+            blowoutGame = {**gameResult, "gameNumber": i + 1}
+
+        # Track effect contributions
+        for effect in gameResult["effects"]:
+            effectTotals[effect] += gameResult["effects"][effect]
+
+    # Calculate average scores
+    avgScoreA = round(totalPointsA / numSimulations * 10) / 10
+    avgScoreB = round(totalPointsB / numSimulations * 10) / 10
+
+    # Calculate win percentage
+    teamAWinPct = (teamAWins / numSimulations) * 100
+    teamBWinPct = (teamBWins / numSimulations) * 100
+
+    # Calculate average effects
+    avgEffects = {}
+    for effect in effectTotals:
+        avgEffects[effect] = round((effectTotals[effect] / numSimulations) * 10) / 10
+
+    # Analyze the distribution of margins
+    marginBuckets = {
+        "1-5 points": 0,
+        "6-10 points": 0,
+        "11-15 points": 0,
+        "16-20 points": 0,
+        "21+ points": 0
+    }
+
+    for game in results:
+        if game["margin"] <= 5:
+            marginBuckets["1-5 points"] += 1
+        elif game["margin"] <= 10:
+            marginBuckets["6-10 points"] += 1
+        elif game["margin"] <= 15:
+            marginBuckets["11-15 points"] += 1
+        elif game["margin"] <= 20:
+            marginBuckets["16-20 points"] += 1
+        else:
+            marginBuckets["21+ points"] += 1
+
+    # Calculate margin distribution percentages
+    marginDistribution = {}
+    for range_, count in marginBuckets.items():
+        marginDistribution[range_] = {
+            "count": count,
+            "percentage": round((count / numSimulations) * 1000) / 10
+        }
+
+    # Return comprehensive simulation results
+    return {
+        "numSimulations": numSimulations,
+        "teamAWins": teamAWins,
+        "teamBWins": teamBWins,
+        "teamAWinPct": round(teamAWinPct * 10) / 10,
+        "teamBWinPct": round(teamBWinPct * 10) / 10,
+        "avgScoreA": avgScoreA,
+        "avgScoreB": avgScoreB,
+        "closestGame": closestGame,
+        "blowoutGame": blowoutGame,
+        "marginDistribution": marginDistribution,
+        "avgEffects": avgEffects
+    }
+
+def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, Any], use_local: bool = False) -> Dict[str, Any]:
+    """
+    Simulate a game between two teams using either local calculations or Claude API
+    
+    Args:
+        team_analysis: Dictionary containing our team analysis
+        opponent_analysis: Dictionary containing opponent team analysis
+        use_local: Whether to use local simulation instead of Claude API
+        
+    Returns:
+        Dictionary containing simulation results
+    """
+    if use_local:
+        return simulate_game_locally(team_analysis, opponent_analysis)
+        
     # Load prompt template
     prompt_path = os.path.join("app/prompts", "game_simulation_prompt.txt")
     with open(prompt_path, "r") as file:
