@@ -1,3 +1,6 @@
 /.env
 /data/
 /app_bk.zip
+/app/temp/reports/*.docx
+/app/temp/uploads/*
+/app/data/analysis_json/*
