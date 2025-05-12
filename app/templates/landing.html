@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}ANOVA Basketball Analytics{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ request.state.root_path }}/static/css/landing.css">
+{% endblock %}
+
+{% block body_attributes %}class="landing-page"{% endblock %}
+
+{% block content %}
+    <div class="landing-container">
+        <!-- Header -->
+        <header class="landing-header">
+            <div class="logo-container">
+                <img src="{{ request.state.root_path }}/static/imgs/anova_logo_white.png" alt="ANOVA Logo" class="landing-logo">
+            </div>
+            <div class="tagline">
+                SEE THE GAME DIFFERENTLY
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1 class="main-headline">BASKETBALL COACHING HAS CHANGED</h1>
+            <p class="subheadline">
+                Anova analyzes team and opponent performance to deliver complete coaching reports with
+                matchup insights, play suggestions, and projected outcomes. All in minutes, not hours.
+            </p>
+        </section>
+
+        <!-- Feature Section -->
+        <section class="feature-section">
+            <div class="feature-columns">
+                <div class="feature-column">
+                    <h2 class="feature-heading">PERSONALIZED NOTEBOOKS OUT.</h2>
+                    <p class="feature-text">
+                        Forget wasted time on old-school paper notebooks and spreadsheets. Get actionable insights instantly.
+                    </p>
+                </div>
+                <div class="feature-column">
+                    <h2 class="feature-heading">TACTICAL CLARITY, NOT RAW DATA.</h2>
+                    <p class="feature-text">
+                        Know what matters, receive specific recommendations based on your team's strengths and your opponent's weaknesses.
+                    </p>
+                </div>
+                <div class="feature-column">
+                    <h2 class="feature-heading">COMPLETE COACHING REPORTS. IN MINUTES.</h2>
+                    <p class="feature-text">
+                        Get insights you can act on, from matchup advantages to specific play recommendations and winning strategies.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Call-to-Action -->
+        <section class="cta-section">
+            <a href="{{ request.state.root_path }}/app" class="cta-button">Launch Anova</a>
+        </section>
+
+        <!-- Footer space -->
+        <div class="footer-space"></div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ request.state.root_path }}/static/js/landing.js"></script>
+{% endblock %}

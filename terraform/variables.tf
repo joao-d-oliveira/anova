@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_profile" {
+  description = "The AWS profile to use for deployment"
+  type        = string
+  default     = "anova"
+}
+
 variable "app_name" {
   description = "Name of the application"
   type        = string
@@ -28,15 +34,7 @@ variable "container_port" {
   default     = 8000
 }
 
-variable "vpc_id" {
-  description = "ID of the VPC where resources will be deployed"
-  type        = string
-}
-
-variable "subnet_ids" {
-  description = "List of subnet IDs where resources will be deployed"
-  type        = list(string)
-}
+# VPC and subnet IDs are now retrieved automatically using data sources
 
 variable "db_name" {
   description = "Name of the PostgreSQL database"
@@ -67,4 +65,28 @@ variable "app_count" {
   description = "Number of ECS tasks to run"
   type        = number
   default     = 1
+}
+
+variable "environment" {
+  description = "Environment name (e.g., dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "session_secret_key" {
+  description = "Secret key for session encryption"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_access_key_id" {
+  description = "AWS Access Key ID for the application to use"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS Secret Access Key for the application to use"
+  type        = string
+  sensitive   = true
 }

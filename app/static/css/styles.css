@@ -11,6 +11,7 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
+    position: relative;
 }
 
 /* Header Styles */
@@ -18,9 +19,43 @@ body {
     padding: 20px 0;
 }
 
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .logo {
     height: 40px;
     width: auto;
+}
+
+.user-info {
+    text-align: right;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.user-email {
+    display: block;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.sign-out-link {
+    font-size: 14px;
+    color: #002800;
+    text-decoration: none;
+}
+
+.sign-out-link:hover {
+    text-decoration: underline;
 }
 
 .main-title {
@@ -339,16 +374,36 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.progress {
-    height: 10px;
-    border-radius: 5px;
+/* Spinner Animation */
+.spinner-container {
+    display: flex;
+    justify-content: center;
     margin: 15px 0;
-    background-color: #eee;
 }
 
-.progress-bar {
-    background-color: #006400;
-    border-radius: 5px;
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(0, 40, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: #002800;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+#processing-message {
+    font-size: 14px;
+    color: #555;
+    margin-top: 10px;
+    transition: all 0.3s ease;
 }
 
 /* Result Section */

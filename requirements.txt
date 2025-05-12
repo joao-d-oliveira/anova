@@ -26,3 +26,9 @@ python-dotenv==1.0.0
 
 # API Clients
 anthropic==0.49.0
+
+# Authentication
+boto3==1.28.62
+python-jose[cryptography]==3.3.0
+itsdangerous==2.1.2
+

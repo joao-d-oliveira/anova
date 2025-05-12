@@ -12,9 +12,9 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Initialize the database
+# Initialize the database without dropping tables in production
 echo "Initializing database..."
-python -m app.database.init_db --drop-tables
+python -m app.database.init_db
 
 # Start the application
 echo "Starting application..."

@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}Create your Anova Account{% endblock %}
+
+{% block inline_style %}
+<style>
+        body {
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .auth-container {
+            width: 100%;
+            max-width: 500px;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .auth-header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .auth-logo {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+        
+        .auth-title {
+            background-color: #0f1923;
+            color: #00ff85;
+            padding: 15px;
+            margin: 0;
+            font-size: 18px;
+            text-align: center;
+        }
+        
+        .auth-form {
+            padding: 20px 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .auth-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #0f1923;
+            color: #00ff85;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .auth-button:hover {
+            background-color: #1a2530;
+        }
+        
+        .auth-links {
+            text-align: center;
+            padding: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .auth-link {
+            display: block;
+            color: #666;
+            text-decoration: none;
+            padding: 8px;
+        }
+        
+        .auth-link:hover {
+            color: #333;
+        }
+        
+        .auth-message {
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .auth-message.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .auth-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .required-label::after {
+            content: " - required";
+            font-size: 0.8em;
+            color: #666;
+            font-weight: normal;
+        }
+        
+        .terms-checkbox {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .terms-checkbox input {
+            margin-right: 10px;
+        }
+        
+        .terms-checkbox label {
+            display: inline;
+            font-weight: normal;
+        }
+        
+        .view-terms {
+            float: right;
+            font-size: 0.9em;
+            padding: 5px 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-decoration: none;
+            color: #333;
+        }
+        
+        .view-terms:hover {
+            background-color: #e9ecef;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="auth-container">
+        <div class="auth-header">
+            <img src="{{ request.state.root_path }}/static/imgs/anova_logo.png" alt="ANOVA Logo" class="auth-logo">
+        </div>
+        
+        <h1 class="auth-title">Create your Anova Account</h1>
+        
+        <div class="auth-form">
+            {% if message %}
+            <div class="auth-message success">
+                {{ message }}
+            </div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="auth-message error">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <form method="post" action="{{ request.state.root_path }}/auth/register">
+                <div class="form-group">
+                    <label for="name" class="form-label required-label">Your name</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="Enter your name" value="{{ name or '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email" class="form-label required-label">Email address</label>
+                    <input type="email" id="email" name="email" class="form-control" placeholder="Enter your email address" value="{{ email or '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="phone_number" class="form-label required-label">Phone number</label>
+                    <input type="tel" id="phone_number" name="phone_number" class="form-control" placeholder="Enter your phone number" value="{{ phone_number or '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="school" class="form-label required-label">Where do you coach?</label>
+                    <input type="text" id="school" name="school" class="form-control" placeholder="Enter school" value="{{ school or '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="role" class="form-label required-label">What is your role?</label>
+                    <input type="text" id="role" name="role" class="form-control" placeholder="Enter role e.g. Head Coach" value="{{ role or '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label required-label">Create a password</label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Enter a password" required>
+                    <small class="form-text text-muted">
+                        Password must be at least 8 characters and include uppercase, lowercase, numbers, and symbols.
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password" class="form-label required-label">Confirm your password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Confirm your password" required>
+                </div>
+                
+                <div class="terms-checkbox">
+                    <input type="checkbox" id="terms" name="terms" required>
+                    <label for="terms">I have read and agree to the terms and conditions</label>
+                    <button type="button" class="view-terms" id="view-terms-btn">View</button>
+                </div>
+                
+                <button type="submit" class="auth-button">Register</button>
+            </form>
+        </div>
+        
+        <div class="auth-links">
+            <a href="{{ request.state.root_path }}/auth/login" class="auth-link">Already have an account? Log in</a>
+            <a href="{{ request.state.root_path }}/auth/terms" class="auth-link">Terms and Conditions</a>
+            {% if request.headers.get('host', '').startswith('localhost') or request.headers.get('host', '').startswith('127.0.0.1') %}
+            <a href="{{ request.state.root_path }}/auth/dev/confirm" class="auth-link" style="color: #dc3545;">Developer: Confirm User</a>
+            {% endif %}
+        </div>
+    
+    <!-- Terms and Conditions Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="termsModalLabel">Anova Terms and Conditions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="terms-content">
+                        <h2>Document Title</h2>
+                        <p>
+                            Lorem ipsum dolor sit amet consectetur. Tincidunt tincidunt vel sit pellentesque habitant egestas dui. Volutpat
+                            non posuere sem posuere phasellus mauris nam. Nullam sem sed potenti sit proin leo habitasse faucibus. Varius
+                            turpis praesent dignissim dictum enim volutpat euismod aliquam. Natoque nisi est volutpat vulputate malesuada
+                            at odio sit magnis. Scelerisque urna aenean viverra pulvinar consectetur morbi.
+                        </p>
+                        <!-- More terms content here... -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="agree-btn">I Agree</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get elements
+            const viewTermsBtn = document.getElementById('view-terms-btn');
+            const termsCheckbox = document.getElementById('terms');
+            const agreeBtn = document.getElementById('agree-btn');
+            
+            // Initialize modal
+            const termsModal = new bootstrap.Modal(document.getElementById('termsModal'));
+            
+            // Show modal when View button is clicked
+            viewTermsBtn.addEventListener('click', function() {
+                termsModal.show();
+            });
+            
+            // Check the checkbox when I Agree button is clicked
+            agreeBtn.addEventListener('click', function() {
+                termsCheckbox.checked = true;
+                termsModal.hide();
+            });
+        });
+    </script>
+{% endblock %}
