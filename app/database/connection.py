@@ -16,6 +16,7 @@ def get_db_connection():
     try:
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "anova"),
             user=os.getenv("DB_USER", "anova_user"),
             password=os.getenv("DB_PASSWORD", "anova@bask3t"),
@@ -45,7 +46,7 @@ def execute_query(query, params=None, fetch=True):
     
     try:
         with conn.cursor() as cur:
-            print(f"DEBUG - Executing query: {query}")
+            print(f"DEBUG - Executing query: {query[:10]}")
             print(f"DEBUG - With params: {params}")
             cur.execute(query, params)
             
@@ -55,7 +56,7 @@ def execute_query(query, params=None, fetch=True):
             
             if fetch:
                 results = cur.fetchall()
-                print(f"DEBUG - Query results: {results}")
+                # print(f"DEBUG - Query results: {results}")
                 return results
             else:
                 print("DEBUG - Query executed successfully")
@@ -115,7 +116,7 @@ def insert_team_stats(team_id, stats_data, game_id=None, is_season_average=True)
         team_id, game_id, is_season_average, ppg, fg_percentage, 
         fg_made, fg_attempted, three_pt_percentage, three_pt_made, three_pt_attempted,
         ft_percentage, ft_made, ft_attempted, rebounds, offensive_rebounds, 
-        defensive_rebounds, assists, steals, blocks, turnovers, assist_to_turnover_ratio
+        defensive_rebounds, assists, steals, blocks, turnovers, assist_to_turnover
     )
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
@@ -299,13 +300,55 @@ def insert_team_analysis(team_id, analysis_data):
         return result[0]["id"]
     return None
 
-def insert_game(home_team_id, away_team_id, date=None, location=None):
+def get_or_create_user(cognito_id, email, name):
+    """
+    Get or create a user in the database based on Cognito ID
+    
+    Args:
+        cognito_id: Cognito user ID
+        email: User email
+        name: User name
+        
+    Returns:
+        User ID if successful, None otherwise
+    """
+    # First try to get the user
+    query = """
+    SELECT id FROM users
+    WHERE cognito_id = %s
+    """
+    
+    result = execute_query(query, (cognito_id,))
+    
+    if result and len(result) > 0:
+        return result[0]["id"]
+    
+    # If user doesn't exist, create it
+    query = """
+    INSERT INTO users (cognito_id, email, name)
+    VALUES (%s, %s, %s)
+    RETURNING id
+    """
+    
+    params = (
+        cognito_id,
+        email,
+        name
+    )
+    
+    result = execute_query(query, params)
+    if result and len(result) > 0:
+        return result[0]["id"]
+    return None
+
+def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=None):
     """
     Insert a game into the database
     
     Args:
         home_team_id: Home team ID
         away_team_id: Away team ID
+        user_id: User ID (optional)
         date: Game date (optional)
         location: Game location (optional)
         
@@ -313,14 +356,15 @@ def insert_game(home_team_id, away_team_id, date=None, location=None):
         Game ID if successful, None otherwise
     """
     query = """
-    INSERT INTO games (home_team_id, away_team_id, date, location)
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO games (home_team_id, away_team_id, user_id, date, location)
+    VALUES (%s, %s, %s, %s, %s)
     RETURNING id
     """
     
     params = (
         home_team_id,
         away_team_id,
+        user_id,
         date,
         location
     )
@@ -409,35 +453,61 @@ def insert_report(game_id, report_type, file_path):
         return result[0]["id"]
     return None
 
-def get_recent_analyses(limit=5):
+def get_recent_analyses(limit=5, user_id=None):
     """
     Get recent analyses from the database
     
     Args:
         limit: Maximum number of analyses to return
+        user_id: User ID to filter by (optional)
         
     Returns:
         List of analyses
     """
-    query = """
-    SELECT g.id as game_id, 
-           ht.name as home_team, 
-           at.name as away_team, 
-           gs.projected_score, 
-           gs.win_probability,
-           r.file_path as report_path,
-           tr1.file_path as team_report_path,
-           tr2.file_path as opponent_report_path,
-           g.created_at
-    FROM games g
-    JOIN teams ht ON g.home_team_id = ht.id
-    JOIN teams at ON g.away_team_id = at.id
-    LEFT JOIN game_simulations gs ON g.id = gs.game_id
-    LEFT JOIN reports r ON g.id = r.game_id AND r.report_type = 'game_analysis'
-    LEFT JOIN reports tr1 ON g.id = tr1.game_id AND tr1.report_type = 'team_analysis'
-    LEFT JOIN reports tr2 ON g.id = tr2.game_id AND tr2.report_type = 'opponent_analysis'
-    ORDER BY g.created_at DESC
-    LIMIT %s
-    """
-    
-    return execute_query(query, (limit,))
+    if user_id:
+        query = """
+        SELECT g.id as game_id, 
+               ht.name as home_team, 
+               at.name as away_team, 
+               gs.projected_score, 
+               gs.win_probability,
+               r.id as report_id,
+               r.file_path as report_path,
+               tr1.file_path as team_report_path,
+               tr2.file_path as opponent_report_path,
+               g.created_at
+        FROM games g
+        JOIN teams ht ON g.home_team_id = ht.id
+        JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN game_simulations gs ON g.id = gs.game_id
+        LEFT JOIN reports r ON g.id = r.game_id AND r.report_type = 'game_analysis'
+        LEFT JOIN reports tr1 ON g.id = tr1.game_id AND tr1.report_type = 'team_analysis'
+        LEFT JOIN reports tr2 ON g.id = tr2.game_id AND tr2.report_type = 'opponent_analysis'
+        WHERE g.user_id = %s
+        ORDER BY g.created_at DESC
+        LIMIT %s
+        """
+        return execute_query(query, (user_id, limit))
+    else:
+        query = """
+        SELECT g.id as game_id, 
+               ht.name as home_team, 
+               at.name as away_team, 
+               gs.projected_score, 
+               gs.win_probability,
+               r.id as report_id,
+               r.file_path as report_path,
+               tr1.file_path as team_report_path,
+               tr2.file_path as opponent_report_path,
+               g.created_at
+        FROM games g
+        JOIN teams ht ON g.home_team_id = ht.id
+        JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN game_simulations gs ON g.id = gs.game_id
+        LEFT JOIN reports r ON g.id = r.game_id AND r.report_type = 'game_analysis'
+        LEFT JOIN reports tr1 ON g.id = tr1.game_id AND tr1.report_type = 'team_analysis'
+        LEFT JOIN reports tr2 ON g.id = tr2.game_id AND tr2.report_type = 'opponent_analysis'
+        ORDER BY g.created_at DESC
+        LIMIT %s
+        """
+        return execute_query(query, (limit,))

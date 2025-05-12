@@ -16,6 +16,7 @@ def init_db(drop_tables=False):
         # Connect to the database
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "anova"),
             user=os.getenv("DB_USER", "anova_user"),
             password=os.getenv("DB_PASSWORD", "anova@bask3t")
@@ -37,6 +38,7 @@ def init_db(drop_tables=False):
             DROP TABLE IF EXISTS coaches CASCADE;
             DROP TABLE IF EXISTS players CASCADE;
             DROP TABLE IF EXISTS teams CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
             """
             cur.execute(drop_script)
             print("Tables dropped successfully!")
@@ -49,6 +51,14 @@ def init_db(drop_tables=False):
         # Execute the SQL script
         print("Creating tables...")
         cur.execute(sql_script)
+        
+        # Read and execute the users schema update script
+        users_script_path = os.path.join(os.path.dirname(__file__), "update_schema_users.sql")
+        if os.path.exists(users_script_path):
+            print("Updating schema with users table...")
+            with open(users_script_path, "r") as f:
+                users_sql_script = f.read()
+            cur.execute(users_sql_script)
         
         # Commit the changes
         conn.commit()

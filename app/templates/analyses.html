@@ -1,11 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basketball Analysis Results</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <style>
+{% extends "base.html" %}
+
+{% block title %}Basketball Analysis Results{% endblock %}
+
+{% block inline_style %}
+<style>
         .analysis-card {
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -76,16 +74,32 @@
             background-color: #0b7dda;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <div class="container">
-        <h1>Basketball Analysis Results</h1>
+        <div class="user-info">
+            {% if request.state.user and request.state.user.email %}
+                <span class="user-email">{{ request.state.user.email }}</span>
+                <a href="{{ request.state.root_path }}/auth/logout" class="sign-out-link">Sign out</a>
+            {% endif %}
+        </div>
         
-        <a href="/" class="back-button">Back to Upload</a>
+        <div class="header">
+            <div class="header-content">
+                <img src="{{ request.state.root_path }}/static/imgs/anova_logo.png" alt="ANOVA Logo" class="logo">
+            </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Basketball Analysis Results</h1>
+        </div>
+        
+        <a href="{{ request.state.root_path }}/" class="back-button">Back to Upload</a>
         
         {% if analyses %}
             {% for analysis in analyses %}
-                <div class="analysis-card">
+                <div class="analysis-card" data-report-id="{{ analysis.report_id }}">
                     <div class="analysis-header">
                         <div class="team-names">{{ analysis.home_team }} vs {{ analysis.away_team }}</div>
                         <div class="timestamp">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
@@ -102,16 +116,18 @@
                     </div>
                     
                     <div class="download-buttons">
+                        <a href="{{ request.state.root_path }}/report/{{ analysis.report_id }}" class="download-button view-button">View Report</a>
+                        
                         {% if analysis.report_path %}
-                            <a href="/api/download-by-path?path={{ analysis.report_path }}" class="download-button">Download Full Analysis</a>
+                            <a href="{{ request.state.root_path }}/api/download-by-path?path={{ analysis.report_path }}" class="download-button">Download Full Analysis</a>
                         {% endif %}
                         
                         {% if analysis.team_report_path %}
-                            <a href="/api/download-by-path?path={{ analysis.team_report_path }}" class="download-button">Download {{ analysis.home_team }} Analysis</a>
+                            <a href="{{ request.state.root_path }}/api/download-by-path?path={{ analysis.team_report_path }}" class="download-button">Download {{ analysis.home_team }} Analysis</a>
                         {% endif %}
                         
                         {% if analysis.opponent_report_path %}
-                            <a href="/api/download-by-path?path={{ analysis.opponent_report_path }}" class="download-button">Download {{ analysis.away_team }} Analysis</a>
+                            <a href="{{ request.state.root_path }}/api/download-by-path?path={{ analysis.opponent_report_path }}" class="download-button">Download {{ analysis.away_team }} Analysis</a>
                         {% endif %}
                     </div>
                 </div>
@@ -123,7 +139,8 @@
             </div>
         {% endif %}
     </div>
-    
-    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
-</body>
-</html>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ request.state.root_path }}/static/js/main.js"></script>
+{% endblock %}

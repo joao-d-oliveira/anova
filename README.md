@@ -50,6 +50,19 @@ anona/
 - Docker (for containerized deployment)
 - Terraform (for AWS deployment)
 
+## Database Configuration
+
+The application is configured to use an AWS RDS PostgreSQL database. The database connection details are stored in the `docker-compose.yml` file for local development and in the Terraform configuration for AWS deployment.
+
+### AWS RDS Database
+
+The application uses an AWS RDS PostgreSQL database with the following configuration:
+- Instance: db.t3.small
+- Engine: PostgreSQL 14
+- Storage: 20GB gp2
+- Multi-AZ: Disabled
+- Publicly accessible: No
+
 ## Quick Start with Docker
 
 The easiest way to run the application is using Docker:
@@ -63,13 +76,12 @@ The easiest way to run the application is using Docker:
 2. Create a `.env` file with required environment variables:
    ```
    ANTHROPIC_API_KEY=your_api_key_here
-   DB_HOST=localhost
-   DB_NAME=anova
-   DB_USER=anova_user
-   DB_PASSWORD=your_secure_password
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=your_aws_access_key
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
    ```
 
-3. Build and start the containers:
+3. Build and start the container:
    ```
    docker-compose up --build
    ```
@@ -107,20 +119,21 @@ If you prefer to run the application without Docker:
 4. Create a `.env` file with required environment variables:
    ```
    ANTHROPIC_API_KEY=your_api_key_here
-   DB_HOST=localhost
+   DB_HOST=basketball-analysis-db.cgdoswe6ytxj.us-east-1.rds.amazonaws.com
    DB_NAME=anova
    DB_USER=anova_user
-   DB_PASSWORD=your_secure_password
+   DB_PASSWORD=9lvbbiYkspuG8EKW5gHnU73KZyaCNu3IrSUM6jaB874=
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=your_aws_access_key
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
    ```
 
-5. Set up a PostgreSQL database with the credentials specified in your `.env` file.
-
-6. Start the application:
+5. Start the application:
    ```
    uvicorn app.main:app --reload
    ```
 
-7. Access the application at http://localhost:8000
+6. Access the application at http://localhost:8000
 
 ## AWS Deployment
 

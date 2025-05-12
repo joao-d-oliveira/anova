@@ -5,29 +5,21 @@ services:
     build: .
     ports:
       - "8000:8000"
-    depends_on:
-      - db
     environment:
-      - DB_HOST=db
-      - DB_NAME=anova
-      - DB_USER=anova_user
-      - DB_PASSWORD=anova@bask3t
+      # Use localhost:5433 when using the SSH tunnel
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5433
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
       - ANTHROPICS_API_KEY=${ANTHROPICS_API_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+      - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+      - COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET}
     volumes:
       - ./app/temp:/app/app/temp
     restart: unless-stopped
-
-  db:
-    image: postgres:14
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=anova_user
-      - POSTGRES_PASSWORD=anova@bask3t
-      - POSTGRES_DB=anova
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  postgres_data:

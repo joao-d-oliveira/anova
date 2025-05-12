@@ -75,7 +75,6 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
     # Encode PDF to base64
     pdf_base64 = encode_pdf_to_base64(file_path)
     
-    # Create message with PDF attachment
     message = client.messages.create(
         model="claude-3-7-sonnet-20250219",
         max_tokens=8000,
@@ -85,23 +84,14 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_base64
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt_template
-                    }
+                    {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_base64}},
+                    {"type": "text", "text": prompt_template}
                 ]
             }
         ]
     )
-    
+    # Create message with PDF attachment
+
     # Extract and parse JSON from response
     try:
         # Look for JSON in the response
@@ -145,6 +135,49 @@ def post_process_team_stats(analysis: Dict[str, Any]) -> Dict[str, Any]:
     
     # Calculate missing team stats from player stats if needed
     if players:
+        total_FGM = sum(player.get("stats", {}).get("FGM", 0) for player in players)
+        total_FGA = sum(player.get("stats", {}).get("FGA", 0) for player in players)
+        total_2FGM = sum(player.get("stats", {}).get("2FGM", 0) for player in players)
+        total_2FGA = sum(player.get("stats", {}).get("2FGA", 0) for player in players)
+        total_3FGM = sum(player.get("stats", {}).get("3FGM", 0) for player in players)
+        total_3FGA = sum(player.get("stats", {}).get("3FGA", 0) for player in players)
+        total_FTM = sum(player.get("stats", {}).get("FTM", 0) for player in players)
+        total_FTA = sum(player.get("stats", {}).get("FTA", 0) for player in players)
+        total_AST = sum(player.get("stats", {}).get("AST", 0) for player in players)
+        total_TO = sum(player.get("stats", {}).get("TO", 0) for player in players)
+
+        total_BLK = sum(player.get("stats", {}).get("BLK", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+        total_REB = sum(player.get("stats", {}).get("REB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+        total_OREB = sum(player.get("stats", {}).get("OREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+        total_DREB = sum(player.get("stats", {}).get("DREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+        total_AST_G = sum(player.get("stats", {}).get("AST", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+        total_STL = sum(player.get("stats", {}).get("STL", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+
+        if total_FGA > 0 < total_FGM:
+            analysis["team_stats"]["FG%"] = f"{round((total_FGM / total_FGA) * 100, 1)}%"
+        if total_2FGA > 0 < total_2FGM:
+            analysis["team_stats"]["2FG%"] = f"{round((total_2FGM / total_2FGA) * 100, 1)}%"
+        if total_3FGA > 0 < total_3FGM:
+            analysis["team_stats"]["3FG%"] = f"{round((total_3FGM / total_3FGA) * 100, 1)}%"
+        if total_FTA > 0 < total_FTM:
+            analysis["team_stats"]["FT%"] = f"{round((total_FTM / total_FTA) * 100, 1)}%"
+
+        if total_AST > 0 < total_TO:
+            analysis["team_stats"]["A/TO"] = round(total_AST / total_TO, 2)
+
+        if total_BLK > 0:
+            analysis["team_stats"]["BLK"] = round(total_BLK, 1)
+        if total_REB > 0:
+            analysis["team_stats"]["REB"] = round(total_REB, 1)
+        if total_OREB > 0:
+            analysis["team_stats"]["OREB"] = round(total_OREB, 1)
+        if total_DREB > 0:
+            analysis["team_stats"]["DREB"] = round(total_DREB, 1)
+        if total_AST_G > 0:
+            analysis["team_stats"]["AST"] = round(total_AST_G, 1)
+        if total_STL > 0:
+            analysis["team_stats"]["STL"] = round(total_STL, 1)
+
         # Calculate PPG if it's 0 or missing
         if analysis["team_stats"].get("PPG", 0) == 0:
             total_ppg = sum(player.get("stats", {}).get("PPG", 0) for player in players)

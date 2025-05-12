@@ -1,4 +1,5 @@
 aws_region          = "us-east-1"
+aws_profile         = "anova"
 app_name            = "basketball-analysis"
 ecr_repository_name = "basketball-analysis"
 image_tag           = "latest"
@@ -10,3 +11,7 @@ db_username         = "anova_user"
 db_password         = "your-secure-password"
 anthropic_api_key   = "your-anthropic-api-key"
 app_count           = 1
+environment         = "dev"
+session_secret_key  = "your-session-secret-key"
+aws_access_key_id   = "your-aws-access-key-id"
+aws_secret_access_key = "your-aws-secret-access-key"

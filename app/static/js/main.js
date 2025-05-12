@@ -1,4 +1,58 @@
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded and parsed');
+    
+    // Function to check if all required DOM elements are present
+    function checkRequiredElements() {
+        const requiredElements = {
+            // Upload form elements
+            'team_files': document.getElementById('team_files'),
+            'opponent_files': document.getElementById('opponent_files'),
+            'team-upload-btn': document.getElementById('team-upload-btn'),
+            'opponent-upload-btn': document.getElementById('opponent-upload-btn'),
+            'team-upload-box': document.getElementById('team-upload-box'),
+            'opponent-upload-box': document.getElementById('opponent-upload-box'),
+            'team-selected-file': document.getElementById('team-selected-file'),
+            'opponent-selected-file': document.getElementById('opponent-selected-file'),
+            'submit-btn': document.getElementById('submit-btn'),
+            'use_local_simulation': document.getElementById('use_local_simulation'),
+            'team_name': document.getElementById('team_name'),
+            'opponent_name': document.getElementById('opponent_name'),
+            
+            // Sections
+            'processing-section': document.getElementById('processing-section'),
+            'result-section': document.getElementById('result-section'),
+            'error-section': document.getElementById('error-section'),
+            'previous-reports-section': document.getElementById('previous-reports-section'),
+            'reports-list': document.getElementById('reports-list'),
+            
+            // Messages and buttons
+            'processing-message': document.getElementById('processing-message'),
+            'result-message': document.getElementById('result-message'),
+            'error-message': document.getElementById('error-message'),
+            'download-button': document.getElementById('download-button'),
+            'download-team-button': document.getElementById('download-team-button'),
+            'download-opponent-button': document.getElementById('download-opponent-button'),
+            'new-analysis-button': document.getElementById('new-analysis-button'),
+            'try-again-button': document.getElementById('try-again-button')
+        };
+        
+        let allPresent = true;
+        for (const [name, element] of Object.entries(requiredElements)) {
+            if (!element) {
+                console.error(`Required element not found: ${name}`);
+                allPresent = false;
+            }
+        }
+        
+        return allPresent;
+    }
+    
+    // Check if all required elements are present
+    const allElementsPresent = checkRequiredElements();
+    if (!allElementsPresent) {
+        console.error('Some required elements are missing. The application may not function correctly.');
+    }
+    
     // Get DOM elements - Upload form elements
     const teamFileInput = document.getElementById('team_files');
     const opponentFileInput = document.getElementById('opponent_files');
@@ -62,11 +116,45 @@ document.addEventListener('DOMContentLoaded', function() {
     submitBtn.addEventListener('click', handleSubmit);
     
     // Add event listeners for result buttons
+    if (downloadButton) {
+        downloadButton.addEventListener('click', function() {
+            if (currentTaskId) {
+                // Get root path from a meta tag that we'll add to the templates
+                const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+                window.location.href = `${rootPath}/api/download/${currentTaskId}`;
+            }
+        });
+    }
+    
+    if (downloadTeamButton) {
+        downloadTeamButton.addEventListener('click', function() {
+            if (currentTaskId) {
+                const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+                window.location.href = `${rootPath}/api/download-team-analysis/${currentTaskId}`;
+            }
+        });
+    }
+    
+    if (downloadOpponentButton) {
+        downloadOpponentButton.addEventListener('click', function() {
+            if (currentTaskId) {
+                const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+                window.location.href = `${rootPath}/api/download-opponent-analysis/${currentTaskId}`;
+            }
+        });
+    }
+    
     newAnalysisButton.addEventListener('click', resetForm);
     tryAgainButton.addEventListener('click', resetForm);
     
     // Add event listener for start again button
-    document.getElementById('start-again-btn').addEventListener('click', resetForm);
+    const startAgainBtn = document.getElementById('start-again-btn');
+    if (startAgainBtn) {
+        startAgainBtn.addEventListener('click', function() {
+            const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+            window.location.href = `${rootPath}/app`;
+        });
+    }
     
     // Load previous reports and ensure upload container is visible
     loadPreviousReports();
@@ -153,49 +241,95 @@ document.addEventListener('DOMContentLoaded', function() {
      * Handle form submission
      */
     async function handleSubmit() {
+        console.log('Submit button clicked');
+        
         // Validate form
-        if (!teamFileInput.files.length) {
+        if (!teamFileInput || !teamFileInput.files || !teamFileInput.files.length) {
             alert('Please select a team file.');
             return;
         }
         
-        if (!opponentFileInput.files.length) {
+        if (!opponentFileInput || !opponentFileInput.files || !opponentFileInput.files.length) {
             alert('Please select an opponent file.');
             return;
         }
         
-        // Show processing section
-        hideAllSections();
-        processingSection.style.display = 'block';
-        
-        // Create a form element
-        const form = document.createElement('form');
-        form.style.display = 'none';
-        form.method = 'post';
-        form.enctype = 'multipart/form-data';
-        document.body.appendChild(form);
-        
-        // Create form data
-        const formData = new FormData();
-        formData.append('team_files', teamFileInput.files[0]);
-        formData.append('opponent_files', opponentFileInput.files[0]);
-        formData.append('team_name', teamNameInput.value);
-        formData.append('opponent_name', opponentNameInput.value);
-        formData.append('use_local_simulation', useLocalSimulation.checked);
-        
         try {
-            // Upload files
-            const response = await fetch('/api/upload/', {
+            console.log('Form validation passed, proceeding with submission');
+            
+            // Show processing section - with null checks
+            hideAllSections();
+            if (processingSection) {
+                processingSection.style.display = 'block';
+                console.log('Processing section displayed');
+            } else {
+                console.error('Processing section element not found');
+            }
+            
+            // Set initial message - with null check
+            if (processingMessage) {
+                processingMessage.textContent = 'Uploading files...';
+                console.log('Processing message updated');
+            } else {
+                console.error('Processing message element not found');
+            }
+            
+            // Create form data directly - no need for an extra form element
+            const formData = new FormData();
+            
+            console.log('Team file:', teamFileInput.files[0].name, 'size:', teamFileInput.files[0].size);
+            console.log('Opponent file:', opponentFileInput.files[0].name, 'size:', opponentFileInput.files[0].size);
+            
+            formData.append('team_files', teamFileInput.files[0]);
+            formData.append('opponent_files', opponentFileInput.files[0]);
+            
+            if (teamNameInput) {
+                formData.append('team_name', teamNameInput.value);
+                console.log('Team name added:', teamNameInput.value);
+            }
+            
+            if (opponentNameInput) {
+                formData.append('opponent_name', opponentNameInput.value);
+                console.log('Opponent name added:', opponentNameInput.value);
+            }
+            
+            if (useLocalSimulation) {
+                formData.append('use_local_simulation', useLocalSimulation.checked);
+                console.log('Use local simulation added:', useLocalSimulation.checked);
+            }
+            
+            console.log('FormData created, sending request to /api/upload/');
+            
+            // Log FormData contents for debugging
+            console.log('FormData contents:');
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ': ' + (pair[1] instanceof File ? pair[1].name : pair[1]));
+            }
+            
+            // Upload files with credentials and proper headers
+            const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+            const response = await fetch(`${rootPath}/api/upload/`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    // Don't set Content-Type header when using FormData
+                    // The browser will set it automatically with the correct boundary
+                    'Accept': 'application/json'
+                }
             });
+            
+            console.log('Response received:', response.status, response.statusText);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('Response data:', data);
+            
             currentTaskId = data.task_id;
+            console.log('Task ID received:', currentTaskId);
             
             // Start checking status
             checkStatus();
@@ -210,30 +344,57 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function checkStatus() {
         if (!currentTaskId) {
+            console.error('No task ID available for status check');
             return;
         }
         
         try {
-            const response = await fetch(`/api/status/${currentTaskId}`);
+            console.log('Checking status for task:', currentTaskId);
+            const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+            const response = await fetch(`${rootPath}/api/status/${currentTaskId}`, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('Status response received:', response.status, response.statusText);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('Status data:', data);
             
             if (data.status === 'processing') {
-                // Update progress bar and message
-                updateProgressBar(data);
+                // Update processing message if we have step information
+                if (processingMessage) {
+                    if (data.step_description) {
+                        processingMessage.textContent = `${data.step_description} (Step ${data.current_step + 1} of ${data.total_steps})`;
+                        console.log('Updated processing message with step info');
+                    } else {
+                        processingMessage.textContent = 'Your files are being processed. This may take a few minutes...';
+                        console.log('Updated processing message with generic info');
+                    }
+                } else {
+                    console.error('Processing message element not found');
+                }
                 
-                // Still processing, check again in 2 seconds
+                // Check again in 2 seconds
+                console.log('Scheduling next status check in 2 seconds');
                 setTimeout(checkStatus, 2000);
             } else if (data.status === 'completed') {
                 // Processing completed
+                console.log('Processing completed, showing result');
                 showResult(data);
             } else if (data.status === 'failed') {
                 // Processing failed
+                console.error('Processing failed:', data.error);
                 showError(data.error || 'An error occurred during processing.');
+            } else {
+                console.warn('Unknown status received:', data.status);
             }
         } catch (error) {
             console.error('Error checking status:', error);
@@ -242,74 +403,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     /**
-     * Update progress bar based on current step
-     * @param {Object} data - Status data from the server
-     */
-    function updateProgressBar(data) {
-        const progressBar = document.querySelector('.progress-bar');
-        
-        if (data.total_steps && data.current_step !== undefined) {
-            // Calculate progress percentage
-            const progressPercent = Math.round((data.current_step / (data.total_steps - 1)) * 100);
-            
-            // Update progress bar width
-            progressBar.style.width = `${progressPercent}%`;
-            progressBar.setAttribute('aria-valuenow', progressPercent);
-            
-            // Update processing message
-            if (data.step_description) {
-                processingMessage.textContent = `${data.step_description} (Step ${data.current_step + 1} of ${data.total_steps})...`;
-            }
-        } else {
-            // Fallback to indeterminate progress
-            progressBar.style.width = '100%';
-            processingMessage.textContent = 'Your files are being processed. This may take a few minutes...';
-        }
-    }
-    
-    /**
-     * Show result section
+     * Show result section or redirect to report view
      * @param {Object} data - Result data
      */
     function showResult(data) {
-        hideAllSections();
-        resultSection.style.display = 'block';
+        // Get the report ID from the data
+        const reportId = data.report_id || currentTaskId;
         
-        // Clear any existing event listeners
-        downloadButton.replaceWith(downloadButton.cloneNode(true));
-        downloadTeamButton.replaceWith(downloadTeamButton.cloneNode(true));
-        downloadOpponentButton.replaceWith(downloadOpponentButton.cloneNode(true));
+        console.log('Redirecting to report view with ID:', reportId);
         
-        // Get fresh references to the buttons
-        const downloadBtn = document.getElementById('download-button');
-        const downloadTeamBtn = document.getElementById('download-team-button');
-        const downloadOpponentBtn = document.getElementById('download-opponent-button');
-        
-        // Set download URLs
-        const downloadUrl = `/api/download/${currentTaskId}`;
-        const teamDownloadUrl = `/api/download-team-analysis/${currentTaskId}`;
-        const opponentDownloadUrl = `/api/download-opponent-analysis/${currentTaskId}`;
-        
-        // Add click event listeners
-        downloadBtn.addEventListener('click', function() {
-            window.open(downloadUrl, '_blank');
-        });
-        
-        downloadTeamBtn.addEventListener('click', function() {
-            window.open(teamDownloadUrl, '_blank');
-        });
-        
-        downloadOpponentBtn.addEventListener('click', function() {
-            window.open(opponentDownloadUrl, '_blank');
-        });
-        
-        // Set result message
-        const teamName = data.team_name || 'Team';
-        const opponentName = data.opponent_name || 'Opponent';
-        resultMessage.textContent = `Your analysis for ${teamName} vs ${opponentName} is ready for download!`;
-        
-        // Reload previous reports
-        loadPreviousReports();
+        // Redirect to the report view page
+        const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+        window.location.href = `${rootPath}/report/${reportId}`;
     }
     
     /**
@@ -317,45 +422,141 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} message - Error message
      */
     function showError(message) {
-        hideAllSections();
-        errorSection.style.display = 'block';
+        console.error('Error occurred:', message);
         
-        // Set error message
-        errorMessage.textContent = message;
+        try {
+            hideAllSections();
+            
+            // Check if error section exists before trying to display it
+            if (errorSection) {
+                errorSection.style.display = 'block';
+                console.log('Error section displayed');
+                
+                // Set error message if element exists
+                if (errorMessage) {
+                    errorMessage.textContent = message;
+                    console.log('Error message set');
+                } else {
+                    console.error('Error message element not found');
+                }
+            } else {
+                console.error('Error section element not found');
+                // Fallback to alert if error section doesn't exist
+                alert('Error: ' + message);
+            }
+        } catch (error) {
+            console.error('Error in showError function:', error);
+            // Fallback to alert if there's an error
+            alert('Error: ' + message);
+        }
     }
     
     /**
      * Reset form and show upload section
      */
     function resetForm() {
-        // Clear form inputs
-        teamFileInput.value = '';
-        opponentFileInput.value = '';
-        teamNameInput.value = '';
-        opponentNameInput.value = '';
-        useLocalSimulation.checked = false;
+        console.log('Resetting form');
         
-        // Clear selected files
-        teamSelectedFile.innerHTML = '';
-        opponentSelectedFile.innerHTML = '';
-        
-        // Reset task ID
-        currentTaskId = null;
-        
-        // Show upload section and previous reports
-        hideAllSections();
-        document.querySelector('.upload-container').style.display = 'block';
-        previousReportsSection.style.display = 'block';
+        try {
+            // Clear form inputs with null checks
+            if (teamFileInput) {
+                teamFileInput.value = '';
+                console.log('Team file input cleared');
+            }
+            
+            if (opponentFileInput) {
+                opponentFileInput.value = '';
+                console.log('Opponent file input cleared');
+            }
+            
+            if (teamNameInput) {
+                teamNameInput.value = '';
+                console.log('Team name input cleared');
+            }
+            
+            if (opponentNameInput) {
+                opponentNameInput.value = '';
+                console.log('Opponent name input cleared');
+            }
+            
+            if (useLocalSimulation) {
+                useLocalSimulation.checked = false;
+                console.log('Use local simulation checkbox unchecked');
+            }
+            
+            // Clear selected files with null checks
+            if (teamSelectedFile) {
+                teamSelectedFile.innerHTML = '';
+                console.log('Team selected file cleared');
+            }
+            
+            if (opponentSelectedFile) {
+                opponentSelectedFile.innerHTML = '';
+                console.log('Opponent selected file cleared');
+            }
+            
+            // Reset task ID
+            currentTaskId = null;
+            console.log('Task ID reset');
+            
+            // Show upload section and previous reports
+            hideAllSections();
+            
+            const uploadContainer = document.querySelector('.upload-container');
+            if (uploadContainer) {
+                uploadContainer.style.display = 'block';
+                console.log('Upload container displayed');
+            } else {
+                console.error('Upload container element not found');
+            }
+            
+            if (previousReportsSection) {
+                previousReportsSection.style.display = 'block';
+                console.log('Previous reports section displayed');
+            } else {
+                console.error('Previous reports section element not found');
+            }
+        } catch (error) {
+            console.error('Error in resetForm function:', error);
+        }
     }
     
     /**
      * Hide all sections
      */
     function hideAllSections() {
-        document.querySelector('.upload-container').style.display = 'none';
-        processingSection.style.display = 'none';
-        resultSection.style.display = 'none';
-        errorSection.style.display = 'none';
+        try {
+            console.log('Hiding all sections');
+            
+            // Check if elements exist before trying to access their style property
+            const uploadContainer = document.querySelector('.upload-container');
+            console.log('Upload container found:', !!uploadContainer);
+            if (uploadContainer) {
+                uploadContainer.style.display = 'none';
+            }
+            
+            console.log('Processing section found:', !!processingSection);
+            if (processingSection) {
+                processingSection.style.display = 'none';
+            }
+            
+            console.log('Result section found:', !!resultSection);
+            if (resultSection) {
+                resultSection.style.display = 'none';
+            }
+            
+            console.log('Error section found:', !!errorSection);
+            if (errorSection) {
+                errorSection.style.display = 'none';
+            }
+            
+            console.log('Previous reports section found:', !!previousReportsSection);
+            if (previousReportsSection) {
+                previousReportsSection.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error hiding sections:', error);
+        }
     }
     
     /**
@@ -363,7 +564,17 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function loadPreviousReports() {
         try {
-            const response = await fetch('/api/analyses');
+            console.log('Loading previous reports');
+            const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+            const response = await fetch(`${rootPath}/api/analyses`, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'text/html'
+                }
+            });
+            
+            console.log('Previous reports response:', response.status, response.statusText);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
@@ -406,14 +617,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reportActions = document.createElement('div');
                     reportActions.className = 'report-actions';
                     
+                    // Get report ID from the card
+                    const reportId = card.getAttribute('data-report-id');
+                    
                     // View Report button
                     const viewButton = document.createElement('button');
                     viewButton.className = 'btn-view';
                     viewButton.textContent = 'View Report';
                     viewButton.addEventListener('click', function() {
-                        if (downloadButtons.length > 0) {
-                            window.open(downloadButtons[0].href, '_blank');
-                        }
+                        const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+                        window.location.href = `${rootPath}/report/${reportId}`;
                     });
                     
                     // Download Report button
@@ -427,9 +640,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         Download Report
                     `;
                     downloadButton.addEventListener('click', function() {
-                        if (downloadButtons.length > 0) {
-                            window.open(downloadButtons[0].href, '_blank');
-                        }
+                        const rootPath = document.querySelector('meta[name="root-path"]')?.getAttribute('content') || '';
+                        window.location.href = `${rootPath}/api/download/${reportId}`;
                     });
                     
                     reportActions.appendChild(viewButton);

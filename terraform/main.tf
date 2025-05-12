@@ -1,6 +1,20 @@
 provider "aws" {
   region  = var.aws_region
-  profile = "anova"
+  profile = var.aws_profile
+  allowed_account_ids = ["597312200011"]
+}
+
+# Get default VPC
+data "aws_vpc" "default" {
+  default = true
+}
+
+# Get default subnets
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 # ECR Repository
@@ -74,7 +88,7 @@ resource "aws_iam_role" "ecs_task_role" {
 resource "aws_security_group" "ecs_tasks" {
   name        = "${var.app_name}-ecs-tasks-sg"
   description = "Allow inbound traffic to ECS tasks"
-  vpc_id      = var.vpc_id
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     protocol    = "tcp"
@@ -95,7 +109,7 @@ resource "aws_security_group" "ecs_tasks" {
 resource "aws_security_group" "rds" {
   name        = "${var.app_name}-rds-sg"
   description = "Allow inbound traffic to RDS from ECS tasks"
-  vpc_id      = var.vpc_id
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     protocol        = "tcp"
@@ -112,10 +126,32 @@ resource "aws_security_group" "rds" {
   }
 }
 
+# Add a new ingress rule to allow external connections to RDS
+resource "aws_security_group_rule" "allow_external_postgres" {
+  type              = "ingress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.rds.id
+  description       = "Allow external connections from anywhere"
+}
+
+# Add a specific ingress rule to allow connections from your local IP
+resource "aws_security_group_rule" "allow_local_postgres" {
+  type              = "ingress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  cidr_blocks       = ["187.18.138.62/32"]
+  security_group_id = aws_security_group.rds.id
+  description       = "Allow external connections from specific IP"
+}
+
 # RDS Subnet Group
 resource "aws_db_subnet_group" "main" {
   name       = "${var.app_name}-db-subnet-group"
-  subnet_ids = var.subnet_ids
+  subnet_ids = data.aws_subnets.default.ids
 
   tags = {
     Name = "${var.app_name} DB Subnet Group"
@@ -136,7 +172,7 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
   multi_az               = false
-  publicly_accessible    = false
+  publicly_accessible    = true  # Changed to true to allow external connections
   skip_final_snapshot    = true
   backup_retention_period = 7
   deletion_protection    = false
@@ -180,10 +216,14 @@ resource "aws_ecs_task_definition" "app" {
           protocol      = "tcp"
         }
       ]
-      environment = [
+      environment = concat([
         {
           name  = "DB_HOST"
           value = aws_db_instance.postgres.address
+        },
+        {
+          name  = "DB_PORT"
+          value = "5432"
         },
         {
           name  = "DB_NAME"
@@ -200,8 +240,24 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "ANTHROPICS_API_KEY"
           value = var.anthropic_api_key
+        },
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "SESSION_SECRET_KEY"
+          value = var.session_secret_key
+        },
+        {
+          name  = "AWS_ACCESS_KEY_ID"
+          value = var.aws_access_key_id
+        },
+        {
+          name  = "AWS_SECRET_ACCESS_KEY"
+          value = var.aws_secret_access_key
         }
-      ]
+      ], local.cognito_environment_variables)
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -221,6 +277,62 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
+# Elastic IP for the application
+resource "aws_eip" "app" {
+  domain = "vpc"
+  tags = {
+    Name = "${var.app_name}-eip"
+  }
+}
+
+# Network Load Balancer with fixed IP
+resource "aws_lb" "app" {
+  name               = "${var.app_name}-nlb"
+  internal           = false
+  load_balancer_type = "network"
+
+  subnet_mapping {
+    subnet_id     = tolist(data.aws_subnets.default.ids)[0]
+    allocation_id = aws_eip.app.id
+  }
+
+  tags = {
+    Name = "${var.app_name}-nlb"
+  }
+}
+
+# Target group for the NLB
+resource "aws_lb_target_group" "app" {
+  name        = "${var.app_name}-tg"
+  port        = var.container_port
+  protocol    = "TCP"
+  vpc_id      = data.aws_vpc.default.id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    interval            = 30
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 6
+  }
+}
+
+# Listener for the NLB
+resource "aws_lb_listener" "app" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = var.container_port
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
 # ECS Service
 resource "aws_ecs_service" "app" {
   name            = "${var.app_name}-service"
@@ -237,11 +349,17 @@ resource "aws_ecs_service" "app" {
 
   network_configuration {
     security_groups  = [aws_security_group.ecs_tasks.id]
-    subnets          = var.subnet_ids
+    subnets          = [tolist(data.aws_subnets.default.ids)[0]]
     assign_public_ip = true
   }
 
-  depends_on = [aws_db_instance.postgres]
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = var.app_name
+    container_port   = var.container_port
+  }
+
+  depends_on = [aws_db_instance.postgres, aws_lb_listener.app]
 }
 
 # Auto Scaling Target

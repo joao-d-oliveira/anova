@@ -38,17 +38,27 @@ output "aws_region" {
   value       = var.aws_region
 }
 
+output "elastic_ip" {
+  description = "Elastic IP address assigned to the application"
+  value       = aws_eip.app.public_ip
+}
+
+output "nlb_dns_name" {
+  description = "DNS name of the Network Load Balancer"
+  value       = aws_lb.app.dns_name
+}
+
 output "app_url_info" {
   description = "Information on how to access the application"
-  value       = "The application is accessible at http://<task-public-ip>:${var.container_port}"
+  value       = "The application is accessible at http://${aws_eip.app.public_ip}:${var.container_port} or via the NLB at http://${aws_lb.app.dns_name}:${var.container_port}"
 }
 
 output "get_app_host_command" {
   description = "Command to get the current host IP address of the application"
-  value       = "aws --profile anova --region ${var.aws_region} ec2 describe-network-interfaces --filters Name=description,Values='*${aws_ecs_cluster.main.name}*' --query 'NetworkInterfaces[?Status==`in-use`].Association.PublicIp' --output text"
+  value       = "echo ${aws_eip.app.public_ip}"
 }
 
 output "access_app_command" {
-  description = "One-liner command to get and open the application URL"
-  value       = "open http://$(aws --profile anova --region ${var.aws_region} ec2 describe-network-interfaces --filters Name=description,Values='*${aws_ecs_cluster.main.name}*' --query 'NetworkInterfaces[?Status==`in-use`].Association.PublicIp' --output text):${var.container_port}"
+  description = "One-liner command to open the application URL"
+  value       = "open http://${aws_eip.app.public_ip}:${var.container_port}"
 }

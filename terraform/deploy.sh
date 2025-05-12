@@ -37,8 +37,12 @@ if [ ! -f terraform.tfvars ]; then
     fi
 fi
 
+# Set AWS profile
+AWS_PROFILE="anova"
+export AWS_PROFILE
+
 # Initialize Terraform
-echo -e "${GREEN}Initializing Terraform...${NC}"
+echo -e "${GREEN}Initializing Terraform with AWS profile: ${YELLOW}${AWS_PROFILE}${NC}"
 terraform init
 
 if [ $? -ne 0 ]; then
@@ -47,8 +51,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # Plan the deployment
-echo -e "${GREEN}Planning Terraform deployment...${NC}"
-terraform plan -out=tfplan
+echo -e "${GREEN}Planning Terraform deployment with AWS profile: ${YELLOW}${AWS_PROFILE}${NC}"
+terraform plan -out=tfplan -var="aws_profile=${AWS_PROFILE}"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Terraform plan failed.${NC}"
@@ -64,7 +68,7 @@ if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
 fi
 
 # Apply the plan
-echo -e "${GREEN}Applying Terraform plan...${NC}"
+echo -e "${GREEN}Applying Terraform plan with AWS profile: ${YELLOW}${AWS_PROFILE}${NC}"
 terraform apply tfplan
 
 if [ $? -ne 0 ]; then
@@ -83,8 +87,8 @@ echo -e "${YELLOW}Do you want to build and push the Docker image to ECR? (y/n)${
 read -r answer
 if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     # Authenticate Docker to ECR
-    echo -e "${GREEN}Authenticating Docker to ECR...${NC}"
-    aws ecr get-login-password --region $AWS_REGION --profile anova | docker login --username AWS --password-stdin $ECR_REPO_URL
+    echo -e "${GREEN}Authenticating Docker to ECR with AWS profile: ${YELLOW}${AWS_PROFILE}${NC}"
+    aws ecr get-login-password --region $AWS_REGION --profile $AWS_PROFILE | docker login --username AWS --password-stdin $ECR_REPO_URL
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Docker authentication to ECR failed.${NC}"
@@ -94,7 +98,7 @@ if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     # Build Docker image
     echo -e "${GREEN}Building Docker image...${NC}"
     cd ..
-    docker build -t basketball-analysis .
+    docker build -t basketball-analysis . --platform linux/amd64
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Docker build failed.${NC}"
@@ -131,14 +135,14 @@ echo -e "ECS Cluster: ${GREEN}$(terraform output -raw ecs_cluster_name)${NC}"
 echo -e "ECS Service: ${GREEN}$(terraform output -raw ecs_service_name)${NC}"
 echo -e "RDS Endpoint: ${GREEN}$(terraform output -raw rds_endpoint)${NC}"
 echo -e "CloudWatch Log Group: ${GREEN}$(terraform output -raw cloudwatch_log_group)${NC}"
+echo -e "Elastic IP: ${GREEN}$(terraform output -raw elastic_ip)${NC}"
+echo -e "Network Load Balancer: ${GREEN}$(terraform output -raw nlb_dns_name)${NC}"
 
 echo -e "${YELLOW}Note: The application may take a few minutes to start up.${NC}"
 echo -e "${YELLOW}You can check the status of the ECS service in the AWS Console.${NC}"
 
 echo -e "${YELLOW}To access the application:${NC}"
-echo -e "Run this command to get the host IP address:"
-echo -e "   ${GREEN}$(terraform output -raw get_app_host_command)${NC}"
-echo -e "Then access the application at: http://<host-ip>:$(terraform output -raw container_port 2>/dev/null || echo "8000")"
+echo -e "Access the application at: http://$(terraform output -raw elastic_ip):$(terraform output -raw container_port 2>/dev/null || echo "8000")"
 echo -e "Or use this one-liner to open the application directly:"
 echo -e "   ${GREEN}$(terraform output -raw access_app_command)${NC}"
 

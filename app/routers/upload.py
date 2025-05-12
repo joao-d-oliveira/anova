@@ -17,7 +17,7 @@ from app.services.report_gen import generate_report
 from app.database.connection import (
     insert_team, insert_team_stats, insert_player, insert_player_stats,
     insert_team_analysis, insert_game, insert_game_simulation, insert_report,
-    get_recent_analyses
+    get_recent_analyses, execute_query
 )
 
 # Set up Jinja2 templates
@@ -48,7 +48,17 @@ async def get_analyses(request: Request):
     """
     Get recent analyses and display them on a webpage
     """
-    analyses = get_recent_analyses(limit=10)
+    # Get current user from request state
+    user = getattr(request.state, "user", None)
+    user_id = None
+    
+    # If user is authenticated, get or create user in database
+    if user and "sub" in user and user["sub"]:
+        from app.database.connection import get_or_create_user
+        user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
+    
+    # Get analyses filtered by user_id
+    analyses = get_recent_analyses(limit=10, user_id=user_id)
     
     return templates.TemplateResponse(
         "analyses.html", 
@@ -61,6 +71,7 @@ async def get_analyses(request: Request):
 @router.post("/upload/")
 async def upload_files(
     background_tasks: BackgroundTasks,
+    request: Request,
     team_files: UploadFile = File(...),
     opponent_files: UploadFile = File(...),
     team_name: Optional[str] = Form(None),
@@ -111,6 +122,9 @@ async def upload_files(
         "step_description": PROCESSING_STEPS[0]
     }
     
+    # Get current user from request state
+    user = getattr(request.state, "user", None)
+    
     # Process files in background
     background_tasks.add_task(
         process_files, 
@@ -118,7 +132,8 @@ async def upload_files(
         file_paths, 
         team_name, 
         opponent_name,
-        use_local_simulation
+        use_local_simulation,
+        user
     )
     
     return {"task_id": task_id, "status": "processing"}
@@ -138,66 +153,119 @@ async def download_report(task_id: str):
     """
     Download the generated report
     """
-    if task_id not in processing_tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    task = processing_tasks[task_id]
-    
-    if task["status"] != "completed":
-        raise HTTPException(status_code=400, detail="Report not ready yet")
-    
-    if not task["report_path"] or not os.path.exists(task["report_path"]):
-        raise HTTPException(status_code=404, detail="Report file not found")
-    
-    return FileResponse(
-        path=task["report_path"],
-        filename=os.path.basename(task["report_path"]),
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    # First check if task_id is in processing_tasks
+    if task_id in processing_tasks:
+        task = processing_tasks[task_id]
+        
+        if task["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Report not ready yet")
+        
+        if not task["report_path"] or not os.path.exists(task["report_path"]):
+            raise HTTPException(status_code=404, detail="Report file not found")
+        
+        return FileResponse(
+            path=task["report_path"],
+            filename=os.path.basename(task["report_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    else:
+        # If not in processing_tasks, check if it's a report ID in the database
+        query = """
+        SELECT r.file_path
+        FROM reports r
+        WHERE r.id = %s
+        """
+        
+        result = execute_query(query, (task_id,))
+        
+        if not result or not result[0]["file_path"] or not os.path.exists(result[0]["file_path"]):
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        return FileResponse(
+            path=result[0]["file_path"],
+            filename=os.path.basename(result[0]["file_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
 @router.get("/download-team-analysis/{task_id}")
 async def download_team_analysis(task_id: str):
     """
     Download the team analysis report
     """
-    if task_id not in processing_tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    task = processing_tasks[task_id]
-    
-    if task["status"] != "completed":
-        raise HTTPException(status_code=400, detail="Reports not ready yet")
-    
-    if not task.get("team_analysis_path") or not os.path.exists(task.get("team_analysis_path", "")):
-        raise HTTPException(status_code=404, detail="Team analysis report not found")
-    
-    return FileResponse(
-        path=task["team_analysis_path"],
-        filename=os.path.basename(task["team_analysis_path"]),
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    # First check if task_id is in processing_tasks
+    if task_id in processing_tasks:
+        task = processing_tasks[task_id]
+        
+        if task["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Reports not ready yet")
+        
+        if not task.get("team_analysis_path") or not os.path.exists(task.get("team_analysis_path", "")):
+            raise HTTPException(status_code=404, detail="Team analysis report not found")
+        
+        return FileResponse(
+            path=task["team_analysis_path"],
+            filename=os.path.basename(task["team_analysis_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    else:
+        # If not in processing_tasks, check if it's a report ID in the database
+        query = """
+        SELECT r.file_path
+        FROM reports r
+        JOIN games g ON r.game_id = g.id
+        WHERE r.id = %s AND r.report_type = 'team_analysis'
+        """
+        
+        result = execute_query(query, (task_id,))
+        
+        if not result or not result[0]["file_path"] or not os.path.exists(result[0]["file_path"]):
+            raise HTTPException(status_code=404, detail="Team analysis report not found")
+        
+        return FileResponse(
+            path=result[0]["file_path"],
+            filename=os.path.basename(result[0]["file_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
 @router.get("/download-opponent-analysis/{task_id}")
 async def download_opponent_analysis(task_id: str):
     """
     Download the opponent analysis report
     """
-    if task_id not in processing_tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    task = processing_tasks[task_id]
-    
-    if task["status"] != "completed":
-        raise HTTPException(status_code=400, detail="Reports not ready yet")
-    
-    if not task.get("opponent_analysis_path") or not os.path.exists(task.get("opponent_analysis_path", "")):
-        raise HTTPException(status_code=404, detail="Opponent analysis report not found")
-    
-    return FileResponse(
-        path=task["opponent_analysis_path"],
-        filename=os.path.basename(task["opponent_analysis_path"]),
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    # First check if task_id is in processing_tasks
+    if task_id in processing_tasks:
+        task = processing_tasks[task_id]
+        
+        if task["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Reports not ready yet")
+        
+        if not task.get("opponent_analysis_path") or not os.path.exists(task.get("opponent_analysis_path", "")):
+            raise HTTPException(status_code=404, detail="Opponent analysis report not found")
+        
+        return FileResponse(
+            path=task["opponent_analysis_path"],
+            filename=os.path.basename(task["opponent_analysis_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    else:
+        # If not in processing_tasks, check if it's a report ID in the database
+        query = """
+        SELECT r.file_path
+        FROM reports r
+        JOIN games g ON r.game_id = g.id
+        WHERE r.id = %s AND r.report_type = 'opponent_analysis'
+        """
+        
+        result = execute_query(query, (task_id,))
+        
+        if not result or not result[0]["file_path"] or not os.path.exists(result[0]["file_path"]):
+            raise HTTPException(status_code=404, detail="Opponent analysis report not found")
+        
+        return FileResponse(
+            path=result[0]["file_path"],
+            filename=os.path.basename(result[0]["file_path"]),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 
 @router.get("/download-by-path")
 async def download_by_path(path: str):
@@ -350,7 +418,7 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
     
     return report_path
 
-async def process_files(task_id: str, file_paths: List[str], team_name: Optional[str], opponent_name: Optional[str], use_local_simulation: bool = False):
+async def process_files(task_id: str, file_paths: List[str], team_name: Optional[str], opponent_name: Optional[str], use_local_simulation: bool = False, user: Optional[Dict] = None):
     """
     Process uploaded PDF files and generate a report
     """
@@ -429,9 +497,15 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             opponent_analysis_id = insert_team_analysis(opponent_id, opponent_analysis)
             print(f"DEBUG - Team Analysis ID: {team_analysis_id}, Opponent Analysis ID: {opponent_analysis_id}")
             
-            # Insert game
+            # Insert game with user ID if available
             print("DEBUG - Inserting game into database")
-            game_id = insert_game(team_id, opponent_id)
+            user_id = None
+            if user and "sub" in user and user["sub"]:
+                from app.database.connection import get_or_create_user
+                user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
+                print(f"DEBUG - User ID: {user_id}")
+            
+            game_id = insert_game(team_id, opponent_id, user_id)
             print(f"DEBUG - Game ID: {game_id}")
             
             # Step 4: Generate team analysis report
@@ -600,6 +674,17 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         processing_tasks[task_id]["team_analysis_path"] = team_analysis_path
         processing_tasks[task_id]["opponent_analysis_path"] = opponent_analysis_path
         processing_tasks[task_id]["game_id"] = game_id if game_id else None
+        
+        # Get the report ID from the database
+        if game_id:
+            report_query = """
+            SELECT id FROM reports 
+            WHERE game_id = %s AND report_type = 'game_analysis'
+            ORDER BY created_at DESC LIMIT 1
+            """
+            report_result = execute_query(report_query, (game_id,))
+            if report_result:
+                processing_tasks[task_id]["report_id"] = report_result[0]["id"]
         
     except Exception as e:
         # Update task status with error
