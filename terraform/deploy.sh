@@ -95,9 +95,14 @@ if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
         exit 1
     fi
 
+    # Update version deployment file with current date
+    echo -e "${GREEN}Updating version deployment file...${NC}"
+    cd ..
+    DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    echo "{\"last_updated\": \"$DATE\"}" > app/VERSION_DEPLOYMENT.JSON
+    
     # Build Docker image
     echo -e "${GREEN}Building Docker image...${NC}"
-    cd ..
     docker build -t basketball-analysis . --platform linux/amd64
 
     if [ $? -ne 0 ]; then
