@@ -159,7 +159,7 @@ The application can be deployed to AWS ECS using Terraform. Before proceeding, e
 
 For more detailed AWS deployment instructions, see:
 - [aws-ecs-deployment.md](aws-ecs-deployment.md) for ECS-specific deployment guide
-- [terraform/README.md](terraform/README.md) for Terraform configuration details
+- [terraform/README.md](terraform/TERRAFORM_README.md) for Terraform configuration details
 
 ## Input Format
 
