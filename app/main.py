@@ -65,7 +65,16 @@ async def landing(request: Request):
 async def app_page(request: Request):
     """
     App endpoint that renders the main application page with the file upload form
+    
+    This route is protected by the AuthMiddleware and requires authentication.
+    If Cognito is unavailable, users will be redirected to the login page with an error.
     """
+    # Check if user is authenticated (this should be handled by AuthMiddleware,
+    # but we add an extra check here for clarity)
+    user = getattr(request.state, "user", None)
+    if not user:
+        return RedirectResponse(url="/auth/login")
+        
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/analyses", response_class=HTMLResponse)
