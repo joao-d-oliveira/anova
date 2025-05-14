@@ -29,7 +29,7 @@ EXPOSE 8000
 
 # Set environment variables
 ENV ROOT_PATH=""
-ENV PYTHONPATH="/app"
+ENV PYTHONPATH="/"
 
 # Use entrypoint script to initialize database and start application
 ENTRYPOINT ["/app/entrypoint.sh"]

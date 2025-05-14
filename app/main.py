@@ -73,7 +73,7 @@ async def landing(request: Request):
     Root endpoint that renders the new landing page
     """
     version_date = get_version_date()
-    return templates.TemplateResponse("landing.html", {"request": request, "version_date": version_date})
+    return templates.TemplateResponse("index.html", {"request": request, "version_date": version_date})
 
 @app.get("/app", response_class=HTMLResponse)
 async def app_page(request: Request):
@@ -89,7 +89,7 @@ async def app_page(request: Request):
     if not user:
         return RedirectResponse(url="/auth/login")
         
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("app.html", {"request": request})
 
 @app.get("/analyses", response_class=HTMLResponse)
 async def analyses_page(request: Request):
