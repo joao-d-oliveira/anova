@@ -6,3 +6,4 @@
 /app/data/analysis_json/*
 /terraform/
 /.roo/
+terraform/terraform.tfvars
