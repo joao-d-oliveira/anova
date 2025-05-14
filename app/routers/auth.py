@@ -22,11 +22,19 @@ router = APIRouter(
 )
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+async def login_page(request: Request, error: Optional[str] = None):
     """
     Display the login page
     """
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    context = {"request": request}
+    
+    # Handle specific error messages
+    if error == "auth_service_unavailable":
+        context["error"] = "Authentication service is unavailable. Please contact the administrator."
+    elif error:
+        context["error"] = error
+        
+    return templates.TemplateResponse("auth/login.html", context)
 
 @router.post("/login")
 async def login_user(

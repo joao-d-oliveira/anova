@@ -23,7 +23,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Check if Cognito is properly configured
         self.cognito_available = bool(cognito_public_keys)
         if not self.cognito_available:
-            logger.warning("Cognito authentication is not available. Running in limited functionality mode.")
+            logger.error("Cognito authentication is not available. Authentication will be restricted.")
     
     async def dispatch(self, request: Request, call_next):
         """
@@ -51,16 +51,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.debug(f"Skipping auth for static path: {request.url.path}")
             return await call_next(request)
             
-        # If Cognito is not available, bypass authentication
+        # If Cognito is not available
         if not self.cognito_available:
-            logger.warning(f"Bypassing authentication for path: {request.url.path} (Cognito unavailable)")
-            # Set a mock user for development purposes
-            request.state.user = {
-                "email": "dev@example.com",
-                "name": "Development User",
-                "sub": "dev-user-id"
-            }
-            return await call_next(request)
+            # Only allow access to landing page, static files, and auth endpoints
+            if request.url.path == "/" or request.url.path.startswith("/static/") or request.url.path.startswith("/auth/"):
+                logger.warning(f"Allowing access to essential path despite Cognito being unavailable: {request.url.path}")
+                return await call_next(request)
+            else:
+                # For all other paths, redirect to the login page with an error message
+                logger.error(f"Blocking access to {request.url.path} - Cognito authentication is unavailable")
+                return RedirectResponse(url="/auth/login?error=auth_service_unavailable")
             
         # Check for token in cookies
         try:
