@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -54,12 +56,24 @@ from app.routers import upload, auth
 app.include_router(upload.router)
 app.include_router(auth.router)
 
+def get_version_date():
+    """
+    Read the VERSION_DEPLOYMENT.JSON file and return the last_updated date
+    """
+    try:
+        with open("app/VERSION_DEPLOYMENT.JSON", "r") as f:
+            version_data = json.load(f)
+            return version_data.get("last_updated", "Unknown")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "Unknown"
+
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     """
     Root endpoint that renders the new landing page
     """
-    return templates.TemplateResponse("landing.html", {"request": request})
+    version_date = get_version_date()
+    return templates.TemplateResponse("landing.html", {"request": request, "version_date": version_date})
 
 @app.get("/app", response_class=HTMLResponse)
 async def app_page(request: Request):
