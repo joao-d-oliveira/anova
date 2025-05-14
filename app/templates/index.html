@@ -2,155 +2,72 @@
 
 {% block title %}ANOVA Basketball Analytics{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ request.state.root_path }}/static/css/landing.css">
+{% endblock %}
+
+{% block body_attributes %}class="landing-page"{% endblock %}
+
 {% block content %}
-    <div class="container">
-        <div class="user-info">
-            {% if request.state.user and request.state.user.email %}
-                <span class="user-email">{{ request.state.user.email }}</span>
-                <a href="{{ request.state.root_path }}/auth/logout" class="sign-out-link">Sign out</a>
-            {% endif %}
-        </div>
-        
-        <div class="header">
-            <div class="header-content">
-                <img src="{{ request.state.root_path }}/static/imgs/anova_logo.png" alt="ANOVA Logo" class="logo">
+    <div class="landing-container">
+        <!-- Header -->
+        <header class="landing-header">
+            <div class="logo-container">
+                <img src="{{ request.state.root_path }}/static/imgs/anova_logo_white.png" alt="ANOVA Logo" class="landing-logo">
             </div>
-        </div>
-        
-        <h1 class="main-title">Upload Your Team and Opponent Stats to Get Started</h1>
-        
-        <div class="upload-container">
-            <div class="row">
-                <!-- Team Upload Section -->
-                <div class="col-md-6">
-                    <div class="upload-section">
-                        <div class="upload-header">
-                            <h2>Enter your player stats</h2>
-                        </div>
-                        <div class="upload-content">
-                            <div class="form-group">
-                                <label for="team_name">Your team name <span class="optional-text">- optional</span></label>
-                                <input type="text" class="form-control" id="team_name" name="team_name" placeholder="Enter team name">
-                            </div>
-                            
-                            <div class="upload-info">
-                                <h3>Upload Your Player Stats</h3>
-                                <p>These can be from the last game, the last 5 or 10 games, or the entire season. Currently, we only accept PDFs.</p>
-                            </div>
-                            
-                            <div class="upload-box" id="team-upload-box">
-                                <p>Drag and drop files, or select from below.</p>
-                                <button type="button" class="upload-btn" id="team-upload-btn">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload" viewBox="0 0 16 16">
-                                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-                                        <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
-                                    </svg>
-                                    Choose your files
-                                </button>
-                                <input type="file" id="team_files" name="team_files" accept=".pdf" class="file-input" required>
-                            </div>
-                            
-                            <div class="selected-file" id="team-selected-file">
-                                <!-- Selected file will be displayed here -->
-                            </div>
-                        </div>
-                    </div>
+            <div class="tagline">
+                SEE THE GAME DIFFERENTLY
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1 class="main-headline">BASKETBALL COACHING HAS CHANGED</h1>
+            <p class="subheadline">
+                Anova analyzes team and opponent performance to deliver complete coaching reports with
+                matchup insights, play suggestions, and projected outcomes. All in minutes, not hours.
+            </p>
+        </section>
+
+        <!-- Feature Section -->
+        <section class="feature-section">
+            <div class="feature-columns">
+                <div class="feature-column">
+                    <h2 class="feature-heading">PERSONALIZED NOTEBOOKS OUT.</h2>
+                    <p class="feature-text">
+                        Forget wasted time on old-school paper notebooks and spreadsheets. Get actionable insights instantly.
+                    </p>
                 </div>
-                
-                <!-- Opponent Upload Section -->
-                <div class="col-md-6">
-                    <div class="upload-section">
-                        <div class="upload-header">
-                            <h2>Enter your opponent's stats</h2>
-                        </div>
-                        <div class="upload-content">
-                            <div class="form-group">
-                                <label for="opponent_name">Your opponent's team name <span class="optional-text">- optional</span></label>
-                                <input type="text" class="form-control" id="opponent_name" name="opponent_name" placeholder="Enter team name">
-                            </div>
-                            
-                            <div class="upload-info">
-                                <h3>Upload Your Opponent's Player Stats</h3>
-                                <p>These can be from the last game, the last 5 or 10 games, or the entire season. Currently, we only accept PDFs.</p>
-                            </div>
-                            
-                            <div class="upload-box" id="opponent-upload-box">
-                                <p>Drag and drop files, or select from below.</p>
-                                <button type="button" class="upload-btn" id="opponent-upload-btn">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload" viewBox="0 0 16 16">
-                                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-                                        <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
-                                    </svg>
-                                    Choose your files
-                                </button>
-                                <input type="file" id="opponent_files" name="opponent_files" accept=".pdf" class="file-input" required>
-                            </div>
-                            
-                            <div class="selected-file" id="opponent-selected-file">
-                                <!-- Selected file will be displayed here -->
-                            </div>
-                        </div>
-                    </div>
+                <div class="feature-column">
+                    <h2 class="feature-heading">TACTICAL CLARITY, NOT RAW DATA.</h2>
+                    <p class="feature-text">
+                        Know what matters, receive specific recommendations based on your team's strengths and your opponent's weaknesses.
+                    </p>
+                </div>
+                <div class="feature-column">
+                    <h2 class="feature-heading">COMPLETE COACHING REPORTS. IN MINUTES.</h2>
+                    <p class="feature-text">
+                        Get insights you can act on, from matchup advantages to specific play recommendations and winning strategies.
+                    </p>
                 </div>
             </div>
-            
-            <div class="action-buttons">
-                <button type="button" id="submit-btn" class="btn btn-submit">Submit</button>
-                <button type="button" id="start-again-btn" class="btn btn-start-again">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                    </svg>
-                    Start again
-                </button>
-                <input type="hidden" id="use_local_simulation" name="use_local_simulation" value="false">
-            </div>
-        </div>
+        </section>
+
+        <!-- Call-to-Action -->
+        <section class="cta-section">
+            <a href="{{ request.state.root_path }}/app" class="cta-button">Launch Anova</a>
+        </section>
+
+        <!-- Footer space -->
+        <div class="footer-space"></div>
         
-        <!-- Previous Reports Section -->
-        <div class="previous-reports" id="previous-reports-section">
-            <h2>Previous reports</h2>
-            <div class="reports-list" id="reports-list">
-                <!-- Reports will be loaded here -->
-            </div>
-        </div>
-        
-        <!-- Processing Section -->
-        <div id="processing-section" style="display: none;">
-            <h2 class="mb-4">Processing Files</h2>
-            <div class="spinner-container">
-                <div class="spinner"></div>
-            </div>
-            <p id="processing-message">Uploading files...</p>
-        </div>
-        
-        <!-- Result Section -->
-        <div id="result-section" style="display: none;">
-            <h2 class="mb-4">Analysis Complete</h2>
-            <div class="alert alert-success" role="alert">
-                <p id="result-message">Your analysis is ready!</p>
-            </div>
-            <div class="d-grid gap-2">
-                <a href="#" class="btn btn-success mb-2" id="download-button">Download Combined Report</a>
-                <a href="#" class="btn btn-info mb-2" id="download-team-button">Download Team Analysis</a>
-                <a href="#" class="btn btn-info mb-2" id="download-opponent-button">Download Opponent Analysis</a>
-                <button class="btn btn-primary" id="new-analysis-button">Start New Analysis</button>
-            </div>
-        </div>
-        
-        <!-- Error Section -->
-        <div id="error-section" style="display: none;">
-            <h2 class="mb-4">Error</h2>
-            <div class="alert alert-danger" role="alert">
-                <p id="error-message">An error occurred during processing.</p>
-            </div>
-            <div class="d-grid gap-2">
-                <button class="btn btn-primary" id="try-again-button">Try Again</button>
-            </div>
-        </div>
+        <!-- Version info -->
+        <footer class="version-info">
+            <small>Last updated: {{ version_date }}</small>
+        </footer>
     </div>
 {% endblock %}
 
 {% block scripts %}
-    <script src="{{ request.state.root_path }}/static/js/main.js"></script>
+<script src="{{ request.state.root_path }}/static/js/landing.js"></script>
 {% endblock %}

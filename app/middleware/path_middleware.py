@@ -1,8 +1,8 @@
 from fastapi import Request
-from starlette.middleware.base import BaseHTleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
 
-class PathMiddleware(BaseHTleware):
+class PathMiddleware(BaseHTTPMiddleware):
     """
     Middleware to handle base path prefixes in different environments.
     This ensures static files and routes work both locally and in ECS.
