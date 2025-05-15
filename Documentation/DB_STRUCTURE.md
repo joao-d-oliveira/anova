@@ -272,6 +272,8 @@ erDiagram
         int id PK
         int game_simulation_id FK
         int player_id FK
+        int team_id FK
+        int game_id FK
         boolean is_home_team
         numeric ppg
         numeric rpg
@@ -286,6 +288,9 @@ erDiagram
     SIMULATION_DETAILS {
         int id PK
         int game_simulation_id FK
+        int game_id FK
+        int home_team_id FK
+        int away_team_id FK
         int num_simulations
         int home_team_wins
         int away_team_wins
@@ -518,6 +523,8 @@ Stores player projection data from game simulations.
 | id | SERIAL | Primary key |
 | game_simulation_id | INTEGER | Foreign key to game_simulations table |
 | player_id | INTEGER | Foreign key to players table |
+| team_id | INTEGER | Foreign key to teams table |
+| game_id | INTEGER | Foreign key to games table |
 | is_home_team | BOOLEAN | Whether the player is on the home team |
 | ppg | NUMERIC(5,1) | Projected points per game |
 | rpg | NUMERIC(5,1) | Projected rebounds per game |
@@ -536,6 +543,9 @@ Stores detailed simulation results.
 |--------|------|-------------|
 | id | SERIAL | Primary key |
 | game_simulation_id | INTEGER | Foreign key to game_simulations table |
+| game_id | INTEGER | Foreign key to games table |
+| home_team_id | INTEGER | Foreign key to teams table for home team |
+| away_team_id | INTEGER | Foreign key to teams table for away team |
 | num_simulations | INTEGER | Number of simulations run |
 | home_team_wins | INTEGER | Number of wins for home team |
 | away_team_wins | INTEGER | Number of wins for away team |
