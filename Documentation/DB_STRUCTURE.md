@@ -30,6 +30,63 @@ The application uses a PostgreSQL database with the following tables:
 12. **simulation_details** - Stores detailed simulation results
 13. **reports** - Stores generated reports
 
+## System Architecture Diagram
+
+```mermaid
+flowchart TD
+    User[User] --> Auth[Authentication]
+    Auth --> Dashboard[Dashboard]
+    
+    Dashboard --> Upload[PDF Upload]
+    Dashboard --> ViewReports[View Reports]
+    Dashboard --> SimulateGames[Simulate Games]
+    
+    Upload --> PDFProcessor[PDF Processor]
+    PDFProcessor --> LLMAnalysis[LLM Analysis\nClaude 3.7 Sonnet]
+    
+    LLMAnalysis --> TeamData[Team Data]
+    LLMAnalysis --> PlayerData[Player Data]
+    LLMAnalysis --> AnalysisData[Analysis Data]
+    
+    TeamData --> Database[(PostgreSQL\nDatabase)]
+    PlayerData --> Database
+    AnalysisData --> Database
+    
+    SimulateGames --> GameSimulation[Game Simulation\nLLM + Local Simulation]
+    GameSimulation --> SimulationResults[Simulation Results]
+    SimulationResults --> Database
+    
+    Database --> ReportGenerator[Report Generator]
+    ReportGenerator --> Reports[Generated Reports]
+    Reports --> ViewReports
+    
+    subgraph "Data Storage"
+        Database
+    end
+    
+    subgraph "AI Processing"
+        LLMAnalysis
+        GameSimulation
+    end
+    
+    subgraph "User Interface"
+        Dashboard
+        Upload
+        ViewReports
+        SimulateGames
+    end
+    
+    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
+    classDef storage fill:#bbf,stroke:#333,stroke-width:2px
+    classDef ai fill:#bfb,stroke:#333,stroke-width:2px
+    classDef ui fill:#fbb,stroke:#333,stroke-width:2px
+    
+    class LLMAnalysis,GameSimulation ai
+    class Database storage
+    class Dashboard,Upload,ViewReports,SimulateGames ui
+    class User,Auth primary
+```
+
 ## Entity-Relationship Diagram
 
 ```mermaid
