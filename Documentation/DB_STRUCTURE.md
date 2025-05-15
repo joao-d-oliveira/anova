@@ -96,12 +96,22 @@ erDiagram
     TEAMS ||--o{ COACHES : has
     TEAMS ||--o{ TEAM_STATS : has
     TEAMS ||--o{ TEAM_ANALYSIS : has
-    PLAYERS ||--o{ PLAYER_STATS : has
+    PLAYERS ||--o{ PLAYER_RAW_STATS : has
+    PLAYER_RAW_STATS ||--o| PLAYER_STATS : calculates
     GAMES }|--|| TEAMS : home_team
     GAMES }|--|| TEAMS : away_team
     GAMES ||--o{ REPORTS : generates
     GAMES ||--o{ GAME_SIMULATIONS : has
     GAMES ||--o{ TEAM_STATS : game_specific
+    GAMES ||--o{ PLAYER_RAW_STATS : game_specific
+    GAMES ||--o{ PLAYER_STATS : game_specific
+    GAMES ||--o{ PLAYER_PROJECTIONS : game_projections
+    GAME_SIMULATIONS ||--|| SIMULATION_DETAILS : details
+    GAME_SIMULATIONS ||--o{ PLAYER_PROJECTIONS : projects
+    TEAMS ||--o{ PLAYER_PROJECTIONS : team_players
+    PLAYERS ||--o{ PLAYER_PROJECTIONS : projected_stats
+    TEAMS ||--o{ SIMULATION_DETAILS : home_team
+    TEAMS ||--o{ SIMULATION_DETAILS : away_team
 
     USERS {
         int id PK
@@ -417,6 +427,7 @@ Stores statistical data for individual players.
 | Column | Type | Description |
 |--------|------|-------------|
 | id | SERIAL | Primary key |
+| player_raw_stats_id | INTEGER | Foreign key to player_raw_stats table (NULL for season averages) |
 | player_id | INTEGER | Foreign key to players table |
 | game_id | INTEGER | Foreign key to games table (NULL for season averages) |
 | games_played | INTEGER | Number of games played |
