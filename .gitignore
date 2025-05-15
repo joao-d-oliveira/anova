@@ -7,3 +7,5 @@
 /terraform/
 /.roo/
 terraform/terraform.tfvars
+/.clinerules/AWS Profile and Conda Env: anova.md
+/config/.env

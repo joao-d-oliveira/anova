@@ -15,21 +15,25 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY ./app /app
+COPY ./app /app/app
+COPY ./config /app/config
 COPY ./requirements.txt /app/
 
 # Create necessary directories
-RUN mkdir -p temp/uploads temp/reports
+RUN mkdir -p /app/app/temp/uploads /app/app/temp/reports
 
 # Make entrypoint script executable
-RUN chmod +x entrypoint.sh
+RUN chmod +x /app/app/entrypoint.sh
 
 # Expose port
 EXPOSE 8000
 
 # Set environment variables
 ENV ROOT_PATH=""
-ENV PYTHONPATH="/"
+ENV PYTHONPATH="/app"
+ENV LOG_LEVEL="DEBUG"
+ENV ENVIRONMENT="production"
+ENV CONFIG_PATH="/app/config/.env"
 
 # Use entrypoint script to initialize database and start application
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/app/entrypoint.sh"]
