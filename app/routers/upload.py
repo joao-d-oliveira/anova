@@ -17,7 +17,8 @@ from app.services.report_gen import generate_report
 from app.database.connection import (
     insert_team, insert_team_stats, insert_player, insert_player_stats,
     insert_team_analysis, insert_game, insert_game_simulation, insert_report,
-    get_recent_analyses, execute_query
+    get_recent_analyses, execute_query, insert_player_raw_stats,
+    insert_player_projections, insert_simulation_details, find_player_by_name
 )
 
 # Set up Jinja2 templates
@@ -477,14 +478,22 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
                 player_id = insert_player(team_id, player)
                 print(f"DEBUG - Team Player ID: {player_id}, Name: {player.get('name')}")
                 if player_id:
-                    player_stats_id = insert_player_stats(player_id, player)
+                    # Insert raw stats first
+                    raw_stats_id = insert_player_raw_stats(player_id, player)
+                    print(f"DEBUG - Team Player Raw Stats ID: {raw_stats_id}")
+                    # Then insert processed stats with reference to raw stats
+                    player_stats_id = insert_player_stats(player_id, player, player_raw_stats_id=raw_stats_id)
                     print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
             
             for player in opponent_analysis.get("players", []):
                 player_id = insert_player(opponent_id, player)
                 print(f"DEBUG - Opponent Player ID: {player_id}, Name: {player.get('name')}")
                 if player_id:
-                    player_stats_id = insert_player_stats(player_id, player)
+                    # Insert raw stats first
+                    raw_stats_id = insert_player_raw_stats(player_id, player)
+                    print(f"DEBUG - Opponent Player Raw Stats ID: {raw_stats_id}")
+                    # Then insert processed stats with reference to raw stats
+                    player_stats_id = insert_player_stats(player_id, player, player_raw_stats_id=raw_stats_id)
                     print(f"DEBUG - Opponent Player Stats ID: {player_stats_id}")
             
             # Insert team analysis
@@ -548,6 +557,77 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
                 print("DEBUG - Inserting game simulation into database")
                 simulation_id = insert_game_simulation(game_id, simulation_results)
                 print(f"DEBUG - Simulation ID: {simulation_id}")
+                
+                # If using local simulation, insert simulation details
+                if use_local_simulation and "numSimulations" in simulation_results:
+                    print("DEBUG - Inserting simulation details into database")
+                    simulation_details_id = insert_simulation_details(
+                        simulation_id, 
+                        game_id, 
+                        team_id,  # home team
+                        opponent_id,  # away team
+                        simulation_results
+                    )
+                    print(f"DEBUG - Simulation Details ID: {simulation_details_id}")
+                
+                # Insert player projections
+                print("DEBUG - Inserting player projections into database")
+                
+                # Process team player projections
+                for i in range(1, 6):  # Assuming up to 5 players
+                    player_key = f"team_p{i}_name"
+                    if player_key in simulation_results:
+                        # Find player ID by name
+                        player_name = simulation_results[f"team_p{i}_name"]
+                        player_id = find_player_by_name(player_name, team_id)
+                        
+                        if player_id:
+                            projection_data = {
+                                "ppg": simulation_results.get(f"team_p{i}_ppg", 0),
+                                "rpg": simulation_results.get(f"team_p{i}_rpg", 0),
+                                "apg": simulation_results.get(f"team_p{i}_apg", 0),
+                                "fg": simulation_results.get(f"team_p{i}_fg", "0%"),
+                                "3p": simulation_results.get(f"team_p{i}_3p", "0%"),
+                                "role": simulation_results.get(f"team_p{i}_role", "")
+                            }
+                            
+                            projection_id = insert_player_projections(
+                                simulation_id,
+                                player_id,
+                                team_id,
+                                game_id,
+                                projection_data,
+                                True  # is_home_team
+                            )
+                            print(f"DEBUG - Team Player Projection ID: {projection_id}, Player: {player_name}")
+                
+                # Process opponent player projections
+                for i in range(1, 6):  # Assuming up to 5 players
+                    player_key = f"opp_p{i}_name"
+                    if player_key in simulation_results:
+                        # Find player ID by name
+                        player_name = simulation_results[f"opp_p{i}_name"]
+                        player_id = find_player_by_name(player_name, opponent_id)
+                        
+                        if player_id:
+                            projection_data = {
+                                "ppg": simulation_results.get(f"opp_p{i}_ppg", 0),
+                                "rpg": simulation_results.get(f"opp_p{i}_rpg", 0),
+                                "apg": simulation_results.get(f"opp_p{i}_apg", 0),
+                                "fg": simulation_results.get(f"opp_p{i}_fg", "0%"),
+                                "3p": simulation_results.get(f"opp_p{i}_3p", "0%"),
+                                "role": simulation_results.get(f"opp_p{i}_role", "")
+                            }
+                            
+                            projection_id = insert_player_projections(
+                                simulation_id,
+                                player_id,
+                                opponent_id,
+                                game_id,
+                                projection_data,
+                                False  # is_home_team
+                            )
+                            print(f"DEBUG - Opponent Player Projection ID: {projection_id}, Player: {player_name}")
         
         # Step 7: Generate final report
         processing_tasks[task_id]["current_step"] = 6

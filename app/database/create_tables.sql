@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS users (
     cognito_id VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(20),
+    school VARCHAR(100),
+    role VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

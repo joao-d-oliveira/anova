@@ -45,7 +45,7 @@ async def startup_event():
     Initialize the database when the application starts
     """
     logger.info("Initializing database...")
-    init_db()
+    init_db(config)
     logger.info("Database initialization complete")
     
     # Log important directories
