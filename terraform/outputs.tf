@@ -1,3 +1,13 @@
+output "cognito_user_pool_id" {
+  value       = aws_cognito_user_pool.anova_pool.id
+  description = "The ID of the Cognito User Pool"
+}
+
+output "cognito_client_id" {
+  value       = aws_cognito_user_pool_client.anova_client.id
+  description = "The ID of the Cognito User Pool Client"
+}
+
 output "ecr_repository_url" {
   description = "URL of the ECR repository"
   value       = aws_ecr_repository.app.repository_url

@@ -5,13 +5,18 @@ import random
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import anthropic
-from dotenv import load_dotenv
+import logging
+from app.config import Config
 
-# Load environment variables
-load_dotenv()
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Initialize configuration
+config = Config()
 
 # Initialize Anthropic client
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPICS_API_KEY"))
+client = anthropic.Anthropic(api_key=config.anthropics_api_key)
+logger.info("Anthropic API client initialized")
 
 def encode_pdf_to_base64(file_path: str) -> str:
     """

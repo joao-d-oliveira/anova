@@ -6,30 +6,22 @@ import time
 from typing import Dict, Any, Optional
 from jose import jwk, jwt
 from jose.utils import base64url_decode
-from dotenv import load_dotenv
+import logging
+from app.config import Config
 
-# Load environment variables
-load_dotenv()
+# Set up logging
+logger = logging.getLogger(__name__)
 
-# Function to get fresh environment variables
-def get_env_vars():
-    # Reload environment variables
-    load_dotenv(override=True)
-    
-    # AWS Cognito configuration
-    return {
-        "REGION": os.getenv("AWS_REGION", "us-east-1"),
-        "USER_POOL_ID": os.getenv("COGNITO_USER_POOL_ID"),
-        "CLIENT_ID": os.getenv("COGNITO_CLIENT_ID"),
-        "CLIENT_SECRET": os.getenv("COGNITO_CLIENT_SECRET")
-    }
+# Initialize configuration
+config = Config()
 
-# Initial environment variables
-env_vars = get_env_vars()
-REGION = env_vars["REGION"]
-USER_POOL_ID = env_vars["USER_POOL_ID"]
-CLIENT_ID = env_vars["CLIENT_ID"]
-CLIENT_SECRET = env_vars["CLIENT_SECRET"]
+# Get Cognito configuration
+REGION = config.aws_region
+USER_POOL_ID = config.cognito_user_pool_id
+CLIENT_ID = config.cognito_client_id
+CLIENT_SECRET = config.cognito_client_secret
+
+logger.info(f"Cognito configuration loaded - Region: {REGION}, User Pool ID: {USER_POOL_ID}")
 
 # Initialize Cognito Identity Provider client
 try:
@@ -63,6 +55,7 @@ def get_cognito_public_keys():
     """
     if not USER_POOL_ID:
         print("ERROR: COGNITO_USER_POOL_ID environment variable is not set")
+        print(f"Current environment variables: REGION={REGION}, USER_POOL_ID={USER_POOL_ID}, CLIENT_ID={CLIENT_ID}")
         return {}
         
     keys_url = f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/.well-known/jwks.json"
@@ -73,14 +66,17 @@ def get_cognito_public_keys():
         with urllib.request.urlopen(keys_url) as f:
             response = f.read()
         keys = json.loads(response.decode('utf-8'))['keys']
+        print(f"Successfully retrieved {len(keys)} Cognito public keys")
         return {key['kid']: key for key in keys}
     except urllib.error.HTTPError as e:
         print(f"ERROR: Failed to fetch Cognito public keys. HTTP Error {e.code}: {e.reason}")
         print(f"Please verify that the USER_POOL_ID '{USER_POOL_ID}' is correct and exists in region '{REGION}'")
+        print(f"Current environment variables: REGION={REGION}, USER_POOL_ID={USER_POOL_ID}, CLIENT_ID={CLIENT_ID}")
         # Return empty dict to allow application to start with limited functionality
         return {}
     except Exception as e:
         print(f"ERROR: Failed to fetch Cognito public keys: {str(e)}")
+        print(f"Current environment variables: REGION={REGION}, USER_POOL_ID={USER_POOL_ID}, CLIENT_ID={CLIENT_ID}")
         return {}
 
 # Cache the public keys
@@ -141,6 +137,24 @@ def verify_token(token: str) -> Dict[str, Any]:
     
     return claims
 
+# Function to get fresh configuration
+def get_fresh_config():
+    """
+    Get fresh configuration values
+    
+    Returns:
+        Dict containing configuration values
+    """
+    # Create a new Config instance to get fresh values
+    fresh_config = Config()
+    
+    return {
+        "REGION": fresh_config.aws_region,
+        "USER_POOL_ID": fresh_config.cognito_user_pool_id,
+        "CLIENT_ID": fresh_config.cognito_client_id,
+        "CLIENT_SECRET": fresh_config.cognito_client_secret
+    }
+
 def register_user(email: str, password: str, name: str, phone_number: str, school: str, role: str) -> Dict[str, Any]:
     """
     Register a new user in AWS Cognito
@@ -160,10 +174,10 @@ def register_user(email: str, password: str, name: str, phone_number: str, schoo
         Exception: If registration fails
     """
     try:
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         # Calculate secret hash with fresh credentials
         secret_hash = calculate_secret_hash(email, client_id, client_secret)
@@ -207,10 +221,10 @@ def confirm_registration(email: str, confirmation_code: str) -> Dict[str, Any]:
         Exception: If confirmation fails
     """
     try:
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         # Calculate secret hash with fresh credentials
         secret_hash = calculate_secret_hash(email, client_id, client_secret)
@@ -243,10 +257,10 @@ def login(email: str, password: str) -> Dict[str, Any]:
     try:
         print(f"Login attempt for user: {email}")
         
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         print(f"Using CLIENT_ID: {client_id}")
         
@@ -304,10 +318,10 @@ def refresh_token(refresh_token: str) -> Dict[str, Any]:
         Exception: If token refresh fails
     """
     try:
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         # Check if CLIENT_SECRET is available
         if not client_secret:
@@ -361,10 +375,10 @@ def forgot_password(email: str) -> Dict[str, Any]:
         Exception: If password reset initiation fails
     """
     try:
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         # Calculate secret hash with fresh credentials
         secret_hash = calculate_secret_hash(email, client_id, client_secret)
@@ -395,10 +409,10 @@ def confirm_forgot_password(email: str, confirmation_code: str, new_password: st
         Exception: If password reset confirmation fails
     """
     try:
-        # Get fresh environment variables
-        env_vars = get_env_vars()
-        client_id = env_vars["CLIENT_ID"]
-        client_secret = env_vars["CLIENT_SECRET"]
+        # Get fresh configuration
+        fresh_config = get_fresh_config()
+        client_id = fresh_config["CLIENT_ID"]
+        client_secret = fresh_config["CLIENT_SECRET"]
         
         # Calculate secret hash with fresh credentials
         secret_hash = calculate_secret_hash(email, client_id, client_secret)
