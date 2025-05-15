@@ -35,6 +35,18 @@ variable "container_port" {
 }
 
 # VPC and subnet IDs are now retrieved automatically using data sources
+# These variables are kept for backward compatibility with terraform.tfvars
+variable "vpc_id" {
+  description = "ID of the VPC (now retrieved automatically using data sources)"
+  type        = string
+  default     = null
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs (now retrieved automatically using data sources)"
+  type        = list(string)
+  default     = null
+}
 
 variable "db_name" {
   description = "Name of the PostgreSQL database"
