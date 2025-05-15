@@ -1,10 +1,11 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from dotenv import load_dotenv
+import logging
+from app.config import Config
 
-# Load environment variables
-load_dotenv()
+# Set up logging
+logger = logging.getLogger(__name__)
 
 def get_db_connection():
     """
@@ -14,12 +15,15 @@ def get_db_connection():
         Connection object
     """
     try:
+        config = Config()
+        logger.info(f"Connecting to database: {config.db_host}:{config.db_port}/{config.db_name}")
+        
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "5432"),
-            database=os.getenv("DB_NAME", "anova"),
-            user=os.getenv("DB_USER", "anova_user"),
-            password=os.getenv("DB_PASSWORD", "anova@bask3t"),
+            host=config.db_host,
+            port=config.db_port,
+            database=config.db_name,
+            user=config.db_user,
+            password=config.db_password,
             cursor_factory=RealDictCursor
         )
         return conn
