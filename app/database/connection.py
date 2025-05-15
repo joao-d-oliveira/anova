@@ -50,8 +50,8 @@ def execute_query(query, params=None, fetch=True):
     
     try:
         with conn.cursor() as cur:
-            print(f"DEBUG - Executing query: {query[:10]}")
-            print(f"DEBUG - With params: {params}")
+            # print(f"DEBUG - Executing query: {query[:10]}")
+            # print(f"DEBUG - With params: {params}")
             cur.execute(query, params)
             
             # Always commit changes, regardless of fetch

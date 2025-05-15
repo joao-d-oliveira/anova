@@ -430,25 +430,22 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         if not team_file_path or not opponent_file_path:
             raise ValueError("Could not identify team and opponent files")
         
-        print("-"*40)
-        print(f"DEBUG - Processing team file: {team_file_path}")
+        print("-"*40 + "\n" + f"DEBUG - Processing team file: {team_file_path}")
         print(f"DEBUG - Processing opponent file: {opponent_file_path}")
         
         # Step 1: Analyze team PDF
         processing_tasks[task_id]["current_step"] = 0
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[0]
         team_analysis = analyze_team_pdf(team_file_path, is_our_team=True)
-        print("-"*40)
-        print("DEBUG - Team Analysis:", team_analysis)
-        print("-"*40, end="\n\n\n")
-        
+        print("Generated team analysis")
+        # print("-"*40 + "\n" + "DEBUG - Team Analysis:", team_analysis)
+
         # Step 2: Analyze opponent PDF
         processing_tasks[task_id]["current_step"] = 1
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[1]
         opponent_analysis = analyze_team_pdf(opponent_file_path, is_our_team=False)
-        print("-"*40)
-        print("DEBUG - Opponent Analysis:", opponent_analysis)
-        print("-" * 40, end="\n\n\n")
+        print("Generated opponent analysis")
+        # print("-"*40 + "\n" + "DEBUG - Opponent Analysis:", opponent_analysis)
 
         # Override team names if provided
         if team_name:
@@ -461,7 +458,6 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[2]
         
         # Insert teams into database
-        print("-"*40)
         print("DEBUG - Inserting teams into database")
         team_id = insert_team(team_analysis)
         opponent_id = insert_team(opponent_analysis)
@@ -519,9 +515,8 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
             opponent_analysis_path = generate_team_analysis_report(opponent_analysis, timestamp)
             
-            print("-"*40)
-            print(f"DEBUG - Team Analysis Report Path: {team_analysis_path}")
-            print(f"DEBUG - Opponent Analysis Report Path: {opponent_analysis_path}")
+            # print("-"*40 + "\n" + f"DEBUG - Team Analysis Report Path: {team_analysis_path}")
+            # print("-"*40 + "\n" + f"DEBUG - Opponent Analysis Report Path: {opponent_analysis_path}")
             
             # Insert reports
             if game_id:
@@ -534,8 +529,7 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             processing_tasks[task_id]["current_step"] = 5
             processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
             simulation_results = simulate_game(team_analysis, opponent_analysis, use_local=use_local_simulation)
-            print("-"*40)
-            print("DEBUG - Simulation Results:", simulation_results)
+            # print("-"*40 + "\n" + "DEBUG - Simulation Results:", simulation_results)
             
             # Check if simulation_results contains the required fields
             required_fields = ["win_probability", "projected_score", "sim_overall_summary", 
@@ -661,8 +655,8 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
         
         # Generate combined report
         report_path = generate_report(analysis_results, simulation_results)
-        print("-" * 40)
-        print("DEBUG - Combined Report Path:", report_path)
+        print("Generated final report")
+        # print("-"*40 + "\n" + "DEBUG - Combined Report Path:", report_path)
         
         # Insert combined report
         if game_id:
