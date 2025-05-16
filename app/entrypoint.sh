@@ -19,15 +19,15 @@ if [ -d "/app" ]; then
 fi
 
 # Check for templates and static directories
-if [ -d "app/templates" ]; then
+if [ -d "/app/templates" ]; then
     echo "Templates directory exists at app/templates"
     echo "Contents:"
-    ls -la app/templates
+    ls -la /app/templates
 else
     echo "WARNING: Templates directory not found at app/templates"
 fi
 
-if [ -d "app/static" ]; then
+if [ -d "/app/static" ]; then
     echo "Static directory exists at app/static"
 else
     echo "WARNING: Static directory not found at app/static"
@@ -35,4 +35,4 @@ fi
 
 # Start the application with increased logging
 echo "Starting uvicorn server..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug
+exec uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug

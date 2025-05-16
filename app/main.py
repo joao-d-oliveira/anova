@@ -8,10 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from app.config import Config
-from app.database.init_db import init_db
-from app.middleware.auth_middleware import AuthMiddleware
-from app.middleware.path_middleware import PathMiddleware
+from config import Config
+from database.init_db import init_db
+from middleware.auth_middleware import AuthMiddleware
+from middleware.path_middleware import PathMiddleware
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -49,9 +49,9 @@ async def startup_event():
     logger.info("Database initialization complete")
     
     # Log important directories
-    base_dir = os.getcwd()
-    templates_dir = os.path.join(base_dir, "app/templates")
-    static_dir = os.path.join(base_dir, "app/static")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    templates_dir = os.path.join(base_dir, "templates")
+    static_dir = os.path.join(base_dir, "static")
     
     logger.info(f"Base directory: {base_dir}")
     logger.info(f"Templates directory: {templates_dir}")
@@ -67,12 +67,14 @@ async def startup_event():
         logger.error(f"Error listing template files: {str(e)}")
 
 # Mount static files with absolute path
-static_dir = os.path.join(os.getcwd(), "app/static")
+root = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(root, "static")
 logger.info(f"Mounting static files from: {static_dir}")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+app.mount( "/static", StaticFiles(directory=static_dir), name="static")
 
 # Set up Jinja2 templates with custom context and absolute path
-templates_dir = os.path.join(os.getcwd(), "app/templates")
+templates_dir = os.path.join(root, "templates")
 logger.info(f"Setting up Jinja2 templates from: {templates_dir}")
 templates = Jinja2Templates(directory=templates_dir)
 
@@ -91,15 +93,16 @@ async def add_root_path_to_templates(request: Request, call_next):
     return response
 
 # Create temp directories if they don't exist
-temp_uploads_dir = os.path.join(os.getcwd(), "app/temp/uploads")
-temp_reports_dir = os.path.join(os.getcwd(), "app/temp/reports")
+root = os.path.dirname(os.path.abspath(__file__))
+temp_uploads_dir = os.path.join(root, "temp/uploads")
+temp_reports_dir = os.path.join(root, "temp/reports")
 
 logger.info(f"Creating temp directories: {temp_uploads_dir}, {temp_reports_dir}")
 os.makedirs(temp_uploads_dir, exist_ok=True)
 os.makedirs(temp_reports_dir, exist_ok=True)
 
 # Import routers after app is created to avoid circular imports
-from app.routers import upload, auth
+from routers import upload, auth
 
 # Include routers
 app.include_router(upload.router)
@@ -109,7 +112,9 @@ def get_version_date():
     """
     Read the VERSION_DEPLOYMENT.JSON file and return the last_updated date
     """
-    version_file = os.path.join(os.getcwd(), "app/VERSION_DEPLOYMENT.JSON")
+
+    root = os.path.dirname(os.path.abspath(__file__))
+    version_file = os.path.join(root, "VERSION_DEPLOYMENT.JSON")
     logger.info(f"Reading version file: {version_file}")
     
     try:
@@ -195,8 +200,8 @@ async def report_view(request: Request, report_id: str):
     """
     View a specific report
     """
-    from app.database.connection import execute_query, get_or_create_user
-    from app.middleware.auth_middleware import get_current_user
+    from database.connection import execute_query, get_or_create_user
+    from middleware.auth_middleware import get_current_user
     
     # Get current user
     user = get_current_user(request)
@@ -367,4 +372,4 @@ async def report_view(request: Request, report_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

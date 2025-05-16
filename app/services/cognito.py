@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from jose import jwk, jwt
 from jose.utils import base64url_decode
 import logging
-from app.config import Config
+from config import Config
 
 # Set up logging
 logger = logging.getLogger(__name__)

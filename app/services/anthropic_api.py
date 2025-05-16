@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import anthropic
 import logging
-from app.config import Config
+from config import Config
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def save_analysis_json(analysis: Dict[str, Any], team_name: str, is_our_team: bo
         Path to the saved JSON file
     """
     # Create directory if it doesn't exist
-    json_dir = "app/data/analysis_json"
+    json_dir = "/app/data/analysis_json"
     os.makedirs(json_dir, exist_ok=True)
     
     # Generate filename with timestamp
@@ -72,33 +72,34 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
         Dictionary containing analysis results
     """
     # Load prompt template
+    root = os.path.dirname(os.path.abspath(__file__))
     if prompt_path is None:
-        prompt_path = os.path.join("app/prompts", "team_analysis_prompt.txt")
+        prompt_path = os.path.join(root, "../prompts", "team_analysis_prompt.txt")
     with open(prompt_path, "r") as file:
         prompt_template = file.read()
     
     # Encode PDF to base64
     pdf_base64 = encode_pdf_to_base64(file_path)
     
-    message = client.messages.create(
-        model="claude-3-7-sonnet-20250219",
-        max_tokens=8000,
-        temperature=0.0,
-        system=f"You are an expert basketball analyst. You are analyzing a PDF containing basketball statistics for a {'team' if is_our_team else 'opponent team'}.",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_base64}},
-                    {"type": "text", "text": prompt_template}
-                ]
-            }
-        ]
-    )
-    # Create message with PDF attachment
-
     # Extract and parse JSON from response
     try:
+        message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=8000,
+            temperature=0.0,
+            system=f"You are an expert basketball analyst. You are analyzing a PDF containing basketball statistics for a {'team' if is_our_team else 'opponent team'}.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "document",
+                         "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_base64}},
+                        {"type": "text", "text": prompt_template}
+                    ]
+                }
+            ]
+        )
+
         # Look for JSON in the response
         response_text = message.content[0].text
         json_start = response_text.find('{')
@@ -139,95 +140,94 @@ def post_process_team_stats(analysis: Dict[str, Any]) -> Dict[str, Any]:
     players = analysis.get("players", [])
     
     # Calculate missing team stats from player stats if needed
-    if players:
-        total_FGM = sum(player.get("stats", {}).get("FGM", 0) for player in players)
-        total_FGA = sum(player.get("stats", {}).get("FGA", 0) for player in players)
-        total_2FGM = sum(player.get("stats", {}).get("2FGM", 0) for player in players)
-        total_2FGA = sum(player.get("stats", {}).get("2FGA", 0) for player in players)
-        total_3FGM = sum(player.get("stats", {}).get("3FGM", 0) for player in players)
-        total_3FGA = sum(player.get("stats", {}).get("3FGA", 0) for player in players)
-        total_FTM = sum(player.get("stats", {}).get("FTM", 0) for player in players)
-        total_FTA = sum(player.get("stats", {}).get("FTA", 0) for player in players)
-        total_AST = sum(player.get("stats", {}).get("AST", 0) for player in players)
-        total_TO = sum(player.get("stats", {}).get("TO", 0) for player in players)
+    total_FGM = sum(player.get("stats", {}).get("FGM", 0) for player in players)
+    total_FGA = sum(player.get("stats", {}).get("FGA", 0) for player in players)
+    total_2FGM = sum(player.get("stats", {}).get("2FGM", 0) for player in players)
+    total_2FGA = sum(player.get("stats", {}).get("2FGA", 0) for player in players)
+    total_3FGM = sum(player.get("stats", {}).get("3FGM", 0) for player in players)
+    total_3FGA = sum(player.get("stats", {}).get("3FGA", 0) for player in players)
+    total_FTM = sum(player.get("stats", {}).get("FTM", 0) for player in players)
+    total_FTA = sum(player.get("stats", {}).get("FTA", 0) for player in players)
+    total_AST = sum(player.get("stats", {}).get("AST", 0) for player in players)
+    total_TO = sum(player.get("stats", {}).get("TO", 0) for player in players)
 
-        total_BLK = sum(player.get("stats", {}).get("BLK", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-        total_REB = sum(player.get("stats", {}).get("REB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-        total_OREB = sum(player.get("stats", {}).get("OREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-        total_DREB = sum(player.get("stats", {}).get("DREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-        total_AST_G = sum(player.get("stats", {}).get("AST", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-        total_STL = sum(player.get("stats", {}).get("STL", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_BLK = sum(player.get("stats", {}).get("BLK", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_REB = sum(player.get("stats", {}).get("REB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_OREB = sum(player.get("stats", {}).get("OREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_DREB = sum(player.get("stats", {}).get("DREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_AST_G = sum(player.get("stats", {}).get("AST", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_STL = sum(player.get("stats", {}).get("STL", 0) / player.get("stats", {}).get("GP", 1) for player in players)
 
-        if total_FGA > 0 < total_FGM:
-            analysis["team_stats"]["FG%"] = f"{round((total_FGM / total_FGA) * 100, 1)}%"
-        if total_2FGA > 0 < total_2FGM:
-            analysis["team_stats"]["2FG%"] = f"{round((total_2FGM / total_2FGA) * 100, 1)}%"
-        if total_3FGA > 0 < total_3FGM:
-            analysis["team_stats"]["3FG%"] = f"{round((total_3FGM / total_3FGA) * 100, 1)}%"
-        if total_FTA > 0 < total_FTM:
-            analysis["team_stats"]["FT%"] = f"{round((total_FTM / total_FTA) * 100, 1)}%"
+    if total_FGA > 0 < total_FGM or "FG%" not in analysis["team_stats"]:
+        analysis["team_stats"]["FG%"] = f"{round((total_FGM / total_FGA) * 100, 1) if total_FGA > 0 else 0}%"
+    if total_2FGA > 0 < total_2FGM or "2FG%" not in analysis["team_stats"]:
+        analysis["team_stats"]["2FG%"] = f"{round((total_2FGM / total_2FGA) * 100, 1) if total_2FGA > 0 else 0}%"
+    if total_3FGA > 0 < total_3FGM or "3FG%" not in analysis["team_stats"]:
+        analysis["team_stats"]["3FG%"] = f"{round((total_3FGM / total_3FGA) * 100, 1) if total_3FGA > 0 else 0}%"
+    if total_FTA > 0 < total_FTM or "FT%" not in analysis["team_stats"]:
+        analysis["team_stats"]["FT%"] = f"{round((total_FTM / total_FTA) * 100, 1) if total_FTA > 0 else 0 }%"
 
-        if total_AST > 0 < total_TO:
-            analysis["team_stats"]["A/TO"] = round(total_AST / total_TO, 2)
+    if total_AST > 0 < total_TO or "A/TO" not in analysis["team_stats"]:
+        analysis["team_stats"]["A/TO"] = round(total_AST / total_TO, 2) if total_TO > 0 else 0
 
-        if total_BLK > 0:
-            analysis["team_stats"]["BLK"] = round(total_BLK, 1)
-        if total_REB > 0:
-            analysis["team_stats"]["REB"] = round(total_REB, 1)
-        if total_OREB > 0:
-            analysis["team_stats"]["OREB"] = round(total_OREB, 1)
-        if total_DREB > 0:
-            analysis["team_stats"]["DREB"] = round(total_DREB, 1)
-        if total_AST_G > 0:
-            analysis["team_stats"]["AST"] = round(total_AST_G, 1)
-        if total_STL > 0:
-            analysis["team_stats"]["STL"] = round(total_STL, 1)
+    if total_BLK > 0 or  "BLK"  not in analysis["team_stats"]:
+        analysis["team_stats"]["BLK"] = round(total_BLK, 1)  if total_BLK > 0 else 0
+    if total_REB > 0 or "REB" not in analysis["team_stats"]:
+        analysis["team_stats"]["REB"] = round(total_REB, 1) if total_REB > 0 else 0
+    if total_OREB > 0 or "OREB" not in analysis["team_stats"]:
+        analysis["team_stats"]["OREB"] = round(total_OREB, 1) if total_OREB > 0 else 0
+    if total_DREB > 0 or "DREB" not in analysis["team_stats"]:
+        analysis["team_stats"]["DREB"] = round(total_DREB, 1) if total_DREB > 0 else 0
+    if total_AST_G > 0 or "AST" not in analysis["team_stats"]:
+        analysis["team_stats"]["AST"] = round(total_AST_G, 1) if total_AST_G > 0 else 0
+    if total_STL > 0 or "STL" not in analysis["team_stats"]:
+        analysis["team_stats"]["STL"] = round(total_STL, 1) if total_STL > 0 else 0
 
-        # Calculate PPG if it's 0 or missing
-        if analysis["team_stats"].get("PPG", 0) == 0:
-            total_ppg = sum(player.get("stats", {}).get("PPG", 0) for player in players)
-            # If we have player PPG, use it as an estimate
-            if total_ppg > 0:
-                analysis["team_stats"]["PPG"] = round(total_ppg, 1)
-        
-        # Calculate REB if it's 0 or missing
-        if analysis["team_stats"].get("REB", 0) == 0:
-            total_rpg = sum(player.get("stats", {}).get("RPG", 0) for player in players)
-            if total_rpg > 0:
-                analysis["team_stats"]["REB"] = round(total_rpg, 1)
-        
-        # Calculate AST if it's 0 or missing
-        if analysis["team_stats"].get("AST", 0) == 0:
-            total_apg = sum(player.get("stats", {}).get("APG", 0) for player in players)
-            if total_apg > 0:
-                analysis["team_stats"]["AST"] = round(total_apg, 1)
-        
-        # Calculate STL if it's 0 or missing
-        if analysis["team_stats"].get("STL", 0) == 0:
-            total_spg = sum(player.get("stats", {}).get("SPG", 0) for player in players)
-            if total_spg > 0:
-                analysis["team_stats"]["STL"] = round(total_spg, 1)
-        
-        # Calculate BLK if it's 0 or missing
-        if analysis["team_stats"].get("BLK", 0) == 0:
-            total_bpg = sum(player.get("stats", {}).get("BPG", 0) for player in players)
-            if total_bpg > 0:
-                analysis["team_stats"]["BLK"] = round(total_bpg, 1)
-        
-        # Calculate TO if it's 0 or missing
-        if analysis["team_stats"].get("TO", 0) == 0:
-            total_topg = sum(player.get("stats", {}).get("TOPG", 0) for player in players)
-            if total_topg > 0:
-                analysis["team_stats"]["TO"] = round(total_topg, 1)
-        
-        # Estimate OREB and DREB if REB is available but they're not
-        if analysis["team_stats"].get("REB", 0) > 0:
-            if analysis["team_stats"].get("OREB", 0) == 0 and analysis["team_stats"].get("DREB", 0) == 0:
-                # Typical split is about 30% offensive, 70% defensive
-                reb = analysis["team_stats"]["REB"]
-                analysis["team_stats"]["OREB"] = round(reb * 0.3, 1)
-                analysis["team_stats"]["DREB"] = round(reb * 0.7, 1)
-    
+    # Calculate PPG if it's 0 or missing
+    if analysis["team_stats"].get("PPG", 0) == 0:
+        total_ppg = sum(player.get("stats", {}).get("PPG", 0) for player in players)
+        # If we have player PPG, use it as an estimate
+        if total_ppg > 0 or "PPG" not in analysis["team_stats"]:
+            analysis["team_stats"]["PPG"] = round(total_ppg, 1)
+
+    # Calculate REB if it's 0 or missing
+    if analysis["team_stats"].get("REB", 0) == 0:
+        total_rpg = sum(player.get("stats", {}).get("RPG", 0) for player in players)
+        if total_rpg > 0 or "REB" not in analysis["team_stats"]:
+            analysis["team_stats"]["REB"] = round(total_rpg, 1)
+
+    # Calculate AST if it's 0 or missing
+    if analysis["team_stats"].get("AST", 0) == 0:
+        total_apg = sum(player.get("stats", {}).get("APG", 0) for player in players)
+        if total_apg > 0 or "AST" not in analysis["team_stats"]:
+            analysis["team_stats"]["AST"] = round(total_apg, 1)
+
+    # Calculate STL if it's 0 or missing
+    if analysis["team_stats"].get("STL", 0) == 0:
+        total_spg = sum(player.get("stats", {}).get("SPG", 0) for player in players)
+        if total_spg > 0 or "STL" not in analysis["team_stats"]:
+            analysis["team_stats"]["STL"] = round(total_spg, 1)
+
+    # Calculate BLK if it's 0 or missing
+    if analysis["team_stats"].get("BLK", 0) == 0:
+        total_bpg = sum(player.get("stats", {}).get("BPG", 0) for player in players)
+        if total_bpg > 0:
+            analysis["team_stats"]["BLK"] = round(total_bpg, 1)
+
+    # Calculate TO if it's 0 or missing
+    if analysis["team_stats"].get("TO", 0) == 0:
+        total_topg = sum(player.get("stats", {}).get("TOPG", 0) for player in players)
+        if total_topg > 0 or "TO" not in analysis["team_stats"]:
+            analysis["team_stats"]["TO"] = round(total_topg, 1)
+
+    # Estimate OREB and DREB if REB is available but they're not
+    if analysis["team_stats"].get("REB", 0) > 0:
+        if analysis["team_stats"].get("OREB", 0) == 0 and analysis["team_stats"].get("DREB", 0) == 0:
+            # Typical split is about 30% offensive, 70% defensive
+            reb = analysis["team_stats"]["REB"]
+            analysis["team_stats"]["OREB"] = round(reb * 0.3, 1)
+            analysis["team_stats"]["DREB"] = round(reb * 0.7, 1)
+
     return analysis
 
 def simulate_game_locally(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -490,7 +490,7 @@ def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, An
         return simulate_game_locally(team_analysis, opponent_analysis)
         
     # Load prompt template
-    prompt_path = os.path.join("app/prompts", "game_simulation_prompt.txt")
+    prompt_path = os.path.join("/app/prompts", "game_simulation_prompt.txt")
     with open(prompt_path, "r") as file:
         prompt_template = file.read()
     

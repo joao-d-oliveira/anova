@@ -20,8 +20,9 @@ class PathMiddleware(BaseHTTPMiddleware):
         logger.info(f"PYTHONPATH: {os.getenv('PYTHONPATH', 'Not set')}")
         
         # Log important directories
-        templates_dir = os.path.join(os.getcwd(), "app/templates")
-        static_dir = os.path.join(os.getcwd(), "app/static")
+        root = os.path.dirname(os.path.abspath(__file__))
+        templates_dir = os.path.join(root, "/../templates")
+        static_dir = os.path.join(root, "/../static")
         
         logger.info(f"Templates directory: {templates_dir}")
         logger.info(f"Templates directory exists: {os.path.exists(templates_dir)}")

@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from app.config import Config
+from config import Config
 
 
 # Load environment variables

@@ -12,9 +12,9 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from app.services.anthropic_api import analyze_team_pdf, simulate_game
-from app.services.report_gen import generate_report
-from app.database.connection import (
+from services.anthropic_api import analyze_team_pdf, simulate_game
+from services.report_gen import generate_report
+from database.connection import (
     insert_team, insert_team_stats, insert_player, insert_player_stats,
     insert_team_analysis, insert_game, insert_game_simulation, insert_report,
     get_recent_analyses, execute_query, insert_player_raw_stats,
@@ -22,7 +22,8 @@ from app.database.connection import (
 )
 
 # Set up Jinja2 templates
-templates = Jinja2Templates(directory="app/templates")
+root = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(root, "../templates"))
 
 router = APIRouter(
     prefix="/api",
@@ -55,7 +56,7 @@ async def get_analyses(request: Request):
     
     # If user is authenticated, get or create user in database
     if user and "sub" in user and user["sub"]:
-        from app.database.connection import get_or_create_user
+        from database.connection import get_or_create_user
         user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
     
     # Get analyses filtered by user_id
@@ -92,7 +93,7 @@ async def upload_files(
     # Create a unique task ID
     task_id = str(uuid.uuid4())
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    task_dir = f"app/temp/uploads/{task_id}"
+    task_dir = f"/app/temp/uploads/{task_id}"
     os.makedirs(task_dir, exist_ok=True)
     
     # Save uploaded files
@@ -411,7 +412,7 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
             doc.add_paragraph(f"• {weakness}", style='List Bullet')
     
     # Save the document
-    report_dir = "app/temp/reports"
+    report_dir = "/app/temp/reports"
     os.makedirs(report_dir, exist_ok=True)
     report_filename = f"{team_name} - Team Analysis - {timestamp}.docx"
     report_path = os.path.join(report_dir, report_filename)
@@ -506,7 +507,7 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             print("DEBUG - Inserting game into database")
             user_id = None
             if user and "sub" in user and user["sub"]:
-                from app.database.connection import get_or_create_user
+                from database.connection import get_or_create_user
                 user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
                 print(f"DEBUG - User ID: {user_id}")
             

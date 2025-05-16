@@ -47,14 +47,14 @@ def generate_report(analysis_results: Dict[str, Any], simulation_results: Dict[s
     add_simulation_results(doc, simulation_results)
     
     # Create output directory if it doesn't exist
-    os.makedirs("app/temp/reports", exist_ok=True)
+    os.makedirs("/app/temp/reports", exist_ok=True)
     
     # Generate filename
     team_name = analysis_results.get("team_name", "Team")
     opponent_name = analysis_results.get("opponent_name", "Opponent")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{team_name} VS {opponent_name} - Anova Analysis - {timestamp}.docx"
-    filepath = os.path.join("app/temp/reports", filename)
+    filepath = os.path.join("/app/temp/reports", filename)
     
     # Save the document
     doc.save(filepath)

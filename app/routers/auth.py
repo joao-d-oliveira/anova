@@ -5,15 +5,16 @@ from typing import Optional
 import os
 from pathlib import Path
 
-from app.services.cognito import (
+from services.cognito import (
     register_user, confirm_registration, login, logout,
     forgot_password, confirm_forgot_password, verify_token,
     cognito_idp
 )
-from app.database.connection import execute_query
+from database.connection import execute_query
 
 # Set up Jinja2 templates
-templates = Jinja2Templates(directory="app/templates")
+root = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(root, "../templates"))
 
 router = APIRouter(
     prefix="/auth",

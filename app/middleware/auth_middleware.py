@@ -12,7 +12,7 @@ import uuid
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from app.services.cognito import verify_token, refresh_token, cognito_public_keys
+from services.cognito import verify_token, refresh_token, cognito_public_keys
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """
