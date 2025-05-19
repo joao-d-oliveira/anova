@@ -2,16 +2,17 @@ import os
 import json
 import logging
 from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from config import Config
-from database.init_db import init_db
-from middleware.auth_middleware import AuthMiddleware
-from middleware.path_middleware import PathMiddleware
+from app.routers import auth, upload
+from app.config import Config
+from app.database.init_db import init_db
+from app.middleware.auth_middleware import AuthMiddleware
+from app.middleware.path_middleware import PathMiddleware
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -35,8 +36,12 @@ app = FastAPI(
 )
 
 # Add middlewares
-app.add_middleware(AuthMiddleware)
+# app.add_middleware(AuthMiddleware)
 app.add_middleware(PathMiddleware)
+
+# Define important directories
+root = Path(__file__).parent
+static_dir = root / "frontend" / "dist"
 
 # Initialize database
 @app.on_event("startup")
@@ -48,35 +53,15 @@ async def startup_event():
     init_db(config)
     logger.info("Database initialization complete")
     
-    # Log important directories
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    templates_dir = os.path.join(base_dir, "templates")
-    static_dir = os.path.join(base_dir, "static")
-    
-    logger.info(f"Base directory: {base_dir}")
-    logger.info(f"Templates directory: {templates_dir}")
-    logger.info(f"Templates directory exists: {os.path.exists(templates_dir)}")
+    logger.info(f"Base directory: {root}")
     logger.info(f"Static directory: {static_dir}")
-    logger.info(f"Static directory exists: {os.path.exists(static_dir)}")
+    logger.info(f"Static directory exists: {static_dir.exists()}")
     
-    # List template files for debugging
-    try:
-        template_files = os.listdir(templates_dir)
-        logger.info(f"Template files: {template_files}")
-    except Exception as e:
-        logger.error(f"Error listing template files: {str(e)}")
-
 # Mount static files with absolute path
-root = os.path.dirname(os.path.abspath(__file__))
-static_dir = os.path.join(root, "static")
+
 logger.info(f"Mounting static files from: {static_dir}")
 
 app.mount( "/static", StaticFiles(directory=static_dir), name="static")
-
-# Set up Jinja2 templates with custom context and absolute path
-templates_dir = os.path.join(root, "templates")
-logger.info(f"Setting up Jinja2 templates from: {templates_dir}")
-templates = Jinja2Templates(directory=templates_dir)
 
 # Add root_path to all templates
 @app.middleware("http")
@@ -101,12 +86,11 @@ logger.info(f"Creating temp directories: {temp_uploads_dir}, {temp_reports_dir}"
 os.makedirs(temp_uploads_dir, exist_ok=True)
 os.makedirs(temp_reports_dir, exist_ok=True)
 
-# Import routers after app is created to avoid circular imports
-from routers import upload, auth
+
 
 # Include routers
-app.include_router(upload.router)
-app.include_router(auth.router)
+app.include_router(upload.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 def get_version_date():
     """
@@ -127,24 +111,6 @@ def get_version_date():
         logger.error(f"Error reading version file: {str(e)}")
         return "Unknown"
 
-@app.get("/", response_class=HTMLResponse)
-async def landing(request: Request):
-    """
-    Root endpoint that renders the new landing page
-    """
-    # Get request ID from auth middleware if available
-    request_id = getattr(request.state, "request_id", "no-id")
-    logger.info(f"[{request_id}] Landing page requested")
-    
-    # Always render the landing page for the root path
-    version_date = get_version_date()
-    logger.info(f"[{request_id}] Rendering landing page with version date: {version_date}")
-    
-    try:
-        return templates.TemplateResponse("index.html", {"request": request, "version_date": version_date})
-    except Exception as e:
-        logger.error(f"[{request_id}] Error rendering landing page: {str(e)}")
-        raise
 
 @app.get("/maintenance", response_class=HTMLResponse)
 async def maintenance_page(request: Request):
@@ -156,37 +122,12 @@ async def maintenance_page(request: Request):
     logger.info(f"[{request_id}] Maintenance page requested")
     
     try:
-        return templates.TemplateResponse("maintenance.html", {"request": request})
+        # todo: replace maintenance page
+        return RedirectResponse(url="/")
     except Exception as e:
         logger.error(f"[{request_id}] Error rendering maintenance page: {str(e)}")
         raise
 
-@app.get("/app", response_class=HTMLResponse)
-async def app_page(request: Request):
-    """
-    App endpoint that renders the main application page with the file upload form
-    
-    This route is protected by the AuthMiddleware and requires authentication.
-    If Cognito is unavailable, users will be redirected to the login page with an error.
-    """
-    # Get request ID from auth middleware if available
-    request_id = getattr(request.state, "request_id", "no-id")
-    logger.info(f"[{request_id}] App page requested")
-    
-    # Check if user is authenticated (this should be handled by AuthMiddleware,
-    # but we add an extra check here for clarity)
-    user = getattr(request.state, "user", None)
-    if not user:
-        logger.warning(f"[{request_id}] User not authenticated, redirecting to login")
-        return RedirectResponse(url="/auth/login")
-    
-    logger.info(f"[{request_id}] User authenticated as {user.get('email')}, rendering app page")
-    
-    try:
-        return templates.TemplateResponse("app.html", {"request": request})
-    except Exception as e:
-        logger.error(f"[{request_id}] Error rendering app page: {str(e)}")
-        raise
 
 @app.get("/analyses", response_class=HTMLResponse)
 async def analyses_page(request: Request):
@@ -368,7 +309,26 @@ async def report_view(request: Request, report_id: str):
         # ]
     }
     
-    return templates.TemplateResponse("report_view.html", context)
+    return context
+
+
+@app.get("/{path:path}")
+async def read_root(path: str):
+    # Don't handle API routes here
+    if path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    if path.startswith("."):
+        return Response(status_code=404)
+
+    full_path = static_dir / path.lstrip("/") / "index.html"
+    if full_path.exists():
+        return FileResponse(full_path)
+    elif (file_path := static_dir / path.lstrip("/")).exists():
+        return FileResponse(file_path)
+    else:
+        return FileResponse(static_dir / "404/index.html", status_code=404)
+
 
 if __name__ == "__main__":
     import uvicorn

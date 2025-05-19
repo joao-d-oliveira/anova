@@ -18,15 +18,6 @@ if [ -d "/app" ]; then
     ls -la
 fi
 
-# Check for templates and static directories
-if [ -d "/app/templates" ]; then
-    echo "Templates directory exists at app/templates"
-    echo "Contents:"
-    ls -la /app/templates
-else
-    echo "WARNING: Templates directory not found at app/templates"
-fi
-
 if [ -d "/app/static" ]; then
     echo "Static directory exists at app/static"
 else

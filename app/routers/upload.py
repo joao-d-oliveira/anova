@@ -12,9 +12,9 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from services.anthropic_api import analyze_team_pdf, simulate_game
-from services.report_gen import generate_report
-from database.connection import (
+from app.services.anthropic_api import analyze_team_pdf, simulate_game
+from app.services.report_gen import generate_report
+from app.database.connection import (
     insert_team, insert_team_stats, insert_player, insert_player_stats,
     insert_team_analysis, insert_game, insert_game_simulation, insert_report,
     get_recent_analyses, execute_query, insert_player_raw_stats,

@@ -709,3 +709,187 @@ def get_recent_analyses(limit=5, user_id=None):
         LIMIT %s
         """
         return execute_query(query, (limit,))
+
+def create_user(email: str, password_hash: str, name: str, phone_number: str = None, school: str = None, role: str = None):
+    """
+    Create a new user in the database
+    
+    Args:
+        email: User email
+        password_hash: Hashed password
+        name: User name
+        phone_number: User phone number (optional)
+        school: User school (optional)
+        role: User role (optional)
+        
+    Returns:
+        User ID if successful, None otherwise
+    """
+    query = """
+    INSERT INTO users (email, password_hash, name, phone_number, school, role)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    RETURNING id
+    """
+    
+    params = (
+        email,
+        password_hash,
+        name,
+        phone_number,
+        school,
+        role
+    )
+    
+    result = execute_query(query, params)
+    if result and len(result) > 0:
+        return result[0]["id"]
+    return None
+
+def get_user_by_email(email: str):
+    """
+    Get a user by email
+    
+    Args:
+        email: User email
+        
+    Returns:
+        User data if found, None otherwise
+    """
+    query = """
+    SELECT id, email, password_hash, name, phone_number, school, role
+    FROM users
+    WHERE email = %s
+    """
+    
+    result = execute_query(query, (email,))
+    if result and len(result) > 0:
+        return result[0]
+    return None
+
+def update_user_password(user_id: int, password_hash: str):
+    """
+    Update a user's password
+    
+    Args:
+        user_id: User ID
+        password_hash: New hashed password
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    query = """
+    UPDATE users
+    SET password_hash = %s
+    WHERE id = %s
+    """
+    
+    result = execute_query(query, (password_hash, user_id), fetch=False)
+    return result is not None
+
+def create_session(user_id: int, session_token: str, expires_at: str):
+    """
+    Create a new session for a user
+    
+    Args:
+        user_id: User ID
+        session_token: Session token
+        expires_at: Session expiration timestamp
+        
+    Returns:
+        Session ID if successful, None otherwise
+    """
+    query = """
+    INSERT INTO sessions (user_id, session_token, expires_at)
+    VALUES (%s, %s, %s)
+    RETURNING id
+    """
+    
+    params = (
+        user_id,
+        session_token,
+        expires_at
+    )
+    
+    result = execute_query(query, params)
+    if result and len(result) > 0:
+        return result[0]["id"]
+    return None
+
+def get_session(session_token: str):
+    """
+    Get a session by token
+    
+    Args:
+        session_token: Session token
+        
+    Returns:
+        Session data if found and not expired, None otherwise
+    """
+    query = """
+    SELECT s.*, u.email, u.name, u.role
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.session_token = %s AND s.expires_at > NOW()
+    """
+    
+    result = execute_query(query, (session_token,))
+    if result and len(result) > 0:
+        return result[0]
+    return None
+
+def delete_session(session_token: str):
+    """
+    Delete a session
+    
+    Args:
+        session_token: Session token
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    query = """
+    DELETE FROM sessions
+    WHERE session_token = %s
+    """
+    
+    result = execute_query(query, (session_token,), fetch=False)
+    return result is not None
+
+def delete_expired_sessions():
+    """
+    Delete all expired sessions
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    query = """
+    DELETE FROM sessions
+    WHERE expires_at <= NOW()
+    """
+    
+    result = execute_query(query, fetch=False)
+    return result is not None
+
+
+def create_unique_token(user_id: int, token: str):
+    """
+    Create a unique token for a user
+    """
+    query = """
+    INSERT INTO one_time_tokens (user_id, token)
+    VALUES (%s, %s)
+    """
+    result = execute_query(query, (user_id, token))
+    return result is not None
+
+def verify_unique_token(token: str):
+    """
+    Verify a unique token and return associated user_id
+    """
+    query = """
+    SELECT user_id FROM one_time_tokens WHERE token = %s
+    """
+    result = execute_query(query, (token,))
+    if result and len(result) > 0:
+        return result[0]["user_id"]
+    return None

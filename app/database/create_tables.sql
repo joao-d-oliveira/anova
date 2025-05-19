@@ -1,12 +1,12 @@
 -- Create users table (new)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    cognito_id VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     phone_number VARCHAR(20),
     school VARCHAR(100),
     role VARCHAR(50),
+    password_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -217,6 +217,14 @@ CREATE TABLE IF NOT EXISTS reports (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create one_time_tokens table
+CREATE TABLE IF NOT EXISTS one_time_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    token VARCHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Add comments to tables for documentation
 COMMENT ON TABLE users IS 'Stores information about application users';
 COMMENT ON TABLE teams IS 'Stores information about basketball teams';
@@ -231,6 +239,7 @@ COMMENT ON TABLE game_simulations IS 'Stores game simulation results';
 COMMENT ON TABLE player_projections IS 'Stores player projection data from game simulations';
 COMMENT ON TABLE simulation_details IS 'Stores detailed simulation results';
 COMMENT ON TABLE reports IS 'Stores generated reports';
+COMMENT ON TABLE one_time_tokens IS 'Stores confirmation tokens for user verification and password reset';
 
 -- Create indexes for performance optimization
 CREATE INDEX idx_players_team_id ON players(team_id);
@@ -256,3 +265,5 @@ CREATE INDEX idx_simulation_details_game_id ON simulation_details(game_id);
 CREATE INDEX idx_simulation_details_home_team_id ON simulation_details(home_team_id);
 CREATE INDEX idx_simulation_details_away_team_id ON simulation_details(away_team_id);
 CREATE INDEX idx_reports_game_id ON reports(game_id);
+CREATE INDEX idx_one_time_tokens_user_id ON one_time_tokens(user_id);
+CREATE INDEX idx_one_time_tokens_token ON one_time_tokens(token);

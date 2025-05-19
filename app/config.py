@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -127,6 +126,8 @@ class Config:
         self._values["aws_profile"] = os.getenv("AWS_PROFILE")
         self._values["aws_access_key_id"] = os.getenv("AWS_ACCESS_KEY_ID")
         self._values["aws_secret_access_key"] = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self._values["noreply_access_key_id"] = os.getenv("NO_REPLY_ACCESS_KEY_ID")
+        self._values["noreply_secret_access_key"] = os.getenv("NO_REPLY_SECRET_ACCESS_KEY")
     
     def _load_cognito_config(self):
         """Load Cognito configuration"""
@@ -140,6 +141,7 @@ class Config:
     
     def _load_session_config(self):
         """Load session configuration"""
+        self._values["base_url"] = os.getenv("BASE_URL")
         self._values["session_secret_key"] = os.getenv("SESSION_SECRET_KEY")
         self._values["environment"] = os.getenv("ENVIRONMENT", "development")
     
@@ -218,6 +220,14 @@ class Config:
         return self._values.get("aws_access_key_id")
     
     @property
+    def noreply_access_key_id(self) -> Optional[str]:
+        return self._values.get("noreply_access_key_id")
+    
+    @property
+    def noreply_secret_access_key(self) -> Optional[str]:
+        return self._values.get("noreply_secret_access_key")
+    
+    @property
     def aws_secret_access_key(self) -> Optional[str]:
         return self._values.get("aws_secret_access_key")
     
@@ -244,3 +254,7 @@ class Config:
     @property
     def environment(self) -> str:
         return self._values.get("environment", "development")
+
+    @property
+    def base_url(self) -> Optional[str]:
+        return self._values.get("base_url")
