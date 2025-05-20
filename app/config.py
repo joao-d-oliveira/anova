@@ -106,6 +106,7 @@ class Config:
         self._load_cognito_config()
         self._load_api_keys()
         self._load_session_config()
+        self._load_email_config()
         
         # Validate required configuration
         self._validate_config()
@@ -142,6 +143,13 @@ class Config:
         """Load session configuration"""
         self._values["session_secret_key"] = os.getenv("SESSION_SECRET_KEY")
         self._values["environment"] = os.getenv("ENVIRONMENT", "development")
+    
+    def _load_email_config(self):
+        """Load email configuration"""
+        self._values["email_noreply_address"] = os.getenv("EMAIL_NOREPLY_ADDRESS", "")
+        self._values["email_noreply_password"] = os.getenv("EMAIL_NOREPLY_PASSWORD", "")
+        self._values["email_smtp_server"] = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
+        self._values["email_smtp_port"] = int(os.getenv("EMAIL_SMTP_PORT", "587"))
     
     def _validate_config(self):
         """Validate required configuration values"""
@@ -244,3 +252,19 @@ class Config:
     @property
     def environment(self) -> str:
         return self._values.get("environment", "development")
+    
+    @property
+    def email_noreply_address(self) -> str:
+        return self._values.get("email_noreply_address", "")
+    
+    @property
+    def email_noreply_password(self) -> str:
+        return self._values.get("email_noreply_password", "")
+    
+    @property
+    def email_smtp_server(self) -> str:
+        return self._values.get("email_smtp_server", "")
+    
+    @property
+    def email_smtp_port(self) -> int:
+        return self._values.get("email_smtp_port", 0)
