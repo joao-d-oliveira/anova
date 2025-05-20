@@ -141,7 +141,7 @@ class Config:
     
     def _load_session_config(self):
         """Load session configuration"""
-        self._values["base_url"] = os.getenv("BASE_URL")
+        self._values["base_dir"] = os.getenv("BASE_DIR", "")
         self._values["session_secret_key"] = os.getenv("SESSION_SECRET_KEY")
         self._values["environment"] = os.getenv("ENVIRONMENT", "development")
     
@@ -254,7 +254,8 @@ class Config:
     @property
     def environment(self) -> str:
         return self._values.get("environment", "development")
-
+    
     @property
-    def base_url(self) -> Optional[str]:
-        return self._values.get("base_url")
+    def base_dir(self) -> str:
+        return self._values.get("base_dir", "")
+

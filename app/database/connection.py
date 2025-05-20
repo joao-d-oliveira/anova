@@ -1,7 +1,11 @@
+import datetime
 import os
+from typing import List, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import logging
+
+from pydantic import BaseModel
 from config import Config
 
 # Set up logging
@@ -201,6 +205,14 @@ def insert_team_stats(team_id, stats_data, game_id=None, is_season_average=True)
         return result[0]["id"]
     return None
 
+def update_team_stats_game_id(team_stats_id, game_id):
+    query = """
+    UPDATE team_stats
+    SET game_id = %s
+    WHERE id = %s
+    """
+    execute_query(query, (game_id, team_stats_id))
+
 def insert_player(team_id, player_data):
     """
     Insert a player into the database
@@ -384,7 +396,7 @@ def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=No
     query = """
     INSERT INTO games (home_team_id, away_team_id, user_id, date, location)
     VALUES (%s, %s, %s, %s, %s)
-    RETURNING id
+    RETURNING id, uuid
     """
     
     params = (
@@ -397,7 +409,7 @@ def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=No
     
     result = execute_query(query, params)
     if result and len(result) > 0:
-        return result[0]["id"]
+        return result[0]["id"], result[0]["uuid"]
     return None
 
 def insert_game_simulation(game_id, simulation_data):
@@ -460,12 +472,12 @@ def insert_report(game_id, report_type, file_path):
         file_path: Path to the report file
         
     Returns:
-        Report ID if successful, None otherwise
+        (Report ID, Report UUID) if successful, None otherwise
     """
     query = """
     INSERT INTO reports (game_id, report_type, file_path)
     VALUES (%s, %s, %s)
-    RETURNING id
+    RETURNING id, uuid
     """
     
     params = (
@@ -476,8 +488,16 @@ def insert_report(game_id, report_type, file_path):
     
     result = execute_query(query, params)
     if result and len(result) > 0:
-        return result[0]["id"]
+        return result[0]["id"], result[0]["uuid"]
     return None
+
+def get_report(report_id: int):
+    query = """
+    SELECT id, uuid, game_id, report_type, file_path FROM reports
+    WHERE id = %s
+    """
+    result = execute_query(query, (report_id,))
+    return result[0]
 
 def insert_player_raw_stats(player_id, stats_data, game_id=None):
     """
@@ -756,11 +776,25 @@ def get_user_by_email(email: str):
         User data if found, None otherwise
     """
     query = """
-    SELECT id, email, password_hash, name, phone_number, school, role
+    SELECT id, email, password_hash, name, phone_number, school, role, confirmed
     FROM users
     WHERE email = %s
     """
     
+    result = execute_query(query, (email,))
+    if result and len(result) > 0:
+        return result[0]
+    return None
+
+def get_public_user_by_email(email: str):
+    """
+    Get only public user information by email, no id or password hash
+    """
+    query = """
+    SELECT email, name, phone_number, school, role
+    FROM users
+    WHERE email = %s
+    """
     result = execute_query(query, (email,))
     if result and len(result) > 0:
         return result[0]
@@ -785,6 +819,19 @@ def update_user_password(user_id: int, password_hash: str):
     
     result = execute_query(query, (password_hash, user_id), fetch=False)
     return result is not None
+
+def confirm_user(user_id: int):
+    """
+    Confirm a user's email
+    """
+    query = """
+    UPDATE users
+    SET confirmed = TRUE
+    WHERE id = %s
+    """
+    result = execute_query(query, (user_id), fetch=False)
+    return result is not None
+
 
 def create_session(user_id: int, session_token: str, expires_at: str):
     """
@@ -871,25 +918,218 @@ def delete_expired_sessions():
     return result is not None
 
 
-def create_unique_token(user_id: int, token: str):
+def create_otp(user_id: int, otp: str):
     """
     Create a unique token for a user
     """
     query = """
-    INSERT INTO one_time_tokens (user_id, token)
+    INSERT INTO one_time_passwords (user_id, otp)
     VALUES (%s, %s)
     """
-    result = execute_query(query, (user_id, token))
-    return result is not None
+    execute_query(query, (user_id, otp))
 
-def verify_unique_token(token: str):
+def verify_otp(user_id: int, otp: str):
     """
     Verify a unique token and return associated user_id
     """
     query = """
-    SELECT user_id FROM one_time_tokens WHERE token = %s
+    SELECT user_id FROM one_time_passwords WHERE user_id = %s AND otp = %s
     """
-    result = execute_query(query, (token,))
+    result = execute_query(query, (user_id, otp))
     if result and len(result) > 0:
-        return result[0]["user_id"]
+        return True
+    return False
+
+def delete_otp(user_id: int, otp: str):
+
+    """
+    Delete a unique token
+    """
+    query = """
+    DELETE FROM one_time_passwords WHERE user_id = %s AND otp = %s
+    """
+    result = execute_query(query, (user_id, otp), fetch=False)
+
+
+class Team(BaseModel):
+    id: int
+    name: str
+    record: Optional[str]
+    ranking: Optional[str]
+    playing_style: Optional[str]
+
+def get_team_by_id(team_id: int) -> Optional[Team]:
+    """
+    Get a team by its ID
+    
+    Args:
+        team_id: Team ID
+        
+    Returns:
+        Team object if found, None otherwise
+    """
+    query = """
+    SELECT * FROM teams WHERE id = %s
+    """
+    results = execute_query(query, (team_id,))
+    if results and len(results) > 0:
+        return Team(**results[0])
+    return None
+
+class TeamStats(BaseModel):
+    ppg: Optional[float]
+    fg_pct: Optional[str]
+    fg_made: Optional[float]
+    fg_attempted: Optional[float]
+    fg3_pct: Optional[str]
+    fg3_made: Optional[float]
+    fg3_attempted: Optional[float]
+    ft_pct: Optional[str]
+    ft_made: Optional[float]
+    ft_attempted: Optional[float]
+    rebounds: Optional[float]
+    offensive_rebounds: Optional[float]
+    defensive_rebounds: Optional[float]
+    assists: Optional[float]
+    steals: Optional[float]
+    blocks: Optional[float]
+    turnovers: Optional[float]
+    assist_to_turnover: Optional[float]
+    is_season_average: Optional[bool]
+
+def get_team_stats_from_game(game_id: int) -> Optional[TeamStats]:
+    """
+    Get team statistics for a specific game
+    
+    Args:
+        game_id: Game ID
+        
+    Returns:
+        List of TeamStats objects
+    """
+    query = """
+    SELECT * FROM team_stats WHERE game_id = %s LIMIT 1
+    """
+    results = execute_query(query, (game_id,))
+    if results:
+        return TeamStats(**results[0])
+    return None
+
+
+class Game(BaseModel):
+    id: int
+    uuid: str
+    home_team_id: int
+    away_team_id: int
+    user_id: Optional[int]
+    location: Optional[str]
+    home_score: Optional[int]
+    away_score: Optional[int]
+    status: Optional[str]
+    created_at: Optional[datetime.datetime]
+    updated_at: Optional[datetime.datetime]
+
+def get_game_by_uuid(game_uuid: str) -> Optional[Game]:
+    """
+    Get a game by its UUID
+    
+    Args:
+        game_uuid: Game UUID
+        
+    Returns:
+        Game object if found, None otherwise
+    """
+    query = """
+    SELECT * FROM games WHERE uuid = %s
+    """
+    results = execute_query(query, (game_uuid,))
+    if results and len(results) > 0:
+        return Game(**results[0])
+    return None
+
+class GameSimulation(BaseModel):
+    id: Optional[int]
+    game_id: int
+    win_probability: Optional[str]
+    projected_score: Optional[str]
+    sim_overall_summary: Optional[str]
+    sim_success_factors: Optional[str]
+    sim_key_matchups: Optional[str]
+    sim_win_loss_patterns: Optional[str]
+
+def get_game_simulation(game_id: int) -> Optional[GameSimulation]:
+    """
+    Get game simulation data for a specific game
+    
+    Args:
+        game_id: Game ID
+        
+    Returns:
+        GameSimulation object if found, None otherwise
+    """
+    query = """
+    SELECT * FROM game_simulations WHERE game_id = %s
+    """
+    results = execute_query(query, (game_id,))
+    if results and len(results) > 0:
+        return GameSimulation(**results[0])
+    return None
+
+class ProjectedPlayer(BaseModel):
+    id: int
+    player_id: int
+    team_id: int
+    game_id: int
+    is_home_team: bool
+    ppg: float
+    rpg: float
+    apg: float
+    fg_pct: str
+    fg3_pct: str
+    role: str
+    actual_ppg: Optional[float]
+    actual_rpg: Optional[float]
+    actual_apg: Optional[float]
+    actual_fg_pct: Optional[str]
+    actual_fg3_pct: Optional[str]
+    actual_ft_pct: Optional[str]
+    actual_spg: Optional[float]
+    actual_bpg: Optional[float]
+    actual_topg: Optional[float]
+    actual_minutes: Optional[float]
+    created_at: Optional[datetime.datetime]
+    updated_at: Optional[datetime.datetime]
+
+def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[ProjectedPlayer]]:
+    """
+    Get projected player statistics for a specific game and team
+    
+    Args:
+        game_id: Game ID
+        team_id: Team ID
+        
+    Returns:
+        List of ProjectedPlayer objects if found, None otherwise
+    """
+    query = """
+    SELECT 
+        pp.*,
+        ps.ppg as actual_ppg,
+        ps.rpg as actual_rpg,
+        ps.apg as actual_apg,
+        ps.fg_pct as actual_fg_pct,
+        ps.fg3_pct as actual_fg3_pct,
+        ps.ft_pct as actual_ft_pct,
+        ps.spg as actual_spg,
+        ps.bpg as actual_bpg,
+        ps.topg as actual_topg,
+        ps.minutes as actual_minutes
+    FROM player_projections pp
+    LEFT JOIN player_stats ps ON pp.player_id = ps.player_id AND pp.game_id = ps.game_id
+    WHERE pp.game_id = %s AND pp.team_id = %s
+    """
+    
+    results = execute_query(query, (game_id, team_id))
+    if results:
+        return [ProjectedPlayer(**result) for result in results]
     return None

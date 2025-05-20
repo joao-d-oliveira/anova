@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from app.routers import auth, upload
+from app.routers import auth, report, upload
 from app.config import Config
 from app.database.init_db import init_db
 from app.middleware.auth_middleware import AuthMiddleware
@@ -37,7 +37,7 @@ app = FastAPI(
 
 # Add middlewares
 # app.add_middleware(AuthMiddleware)
-app.add_middleware(PathMiddleware)
+# app.add_middleware(PathMiddleware)
 
 # Define important directories
 root = Path(__file__).parent
@@ -64,18 +64,18 @@ logger.info(f"Mounting static files from: {static_dir}")
 app.mount( "/static", StaticFiles(directory=static_dir), name="static")
 
 # Add root_path to all templates
-@app.middleware("http")
-async def add_root_path_to_templates(request: Request, call_next):
-    # Get root_path from environment or use empty string
-    root_path = os.getenv("ROOT_PATH", "")
-    request.state.root_path = root_path
+# @app.middleware("http")
+# async def add_root_path_to_templates(request: Request, call_next):
+#     # Get root_path from environment or use empty string
+#     root_path = os.getenv("ROOT_PATH", "")
+#     request.state.root_path = root_path
     
-    # Get request ID from auth middleware if available
-    request_id = getattr(request.state, "request_id", "no-id")
-    logger.info(f"[{request_id}] Template middleware processing request for path: {request.url.path}")
+#     # Get request ID from auth middleware if available
+#     request_id = getattr(request.state, "request_id", "no-id")
+#     logger.info(f"[{request_id}] Template middleware processing request for path: {request.url.path}")
     
-    response = await call_next(request)
-    return response
+#     response = await call_next(request)
+#     return response
 
 # Create temp directories if they don't exist
 root = os.path.dirname(os.path.abspath(__file__))
@@ -91,6 +91,7 @@ os.makedirs(temp_reports_dir, exist_ok=True)
 # Include routers
 app.include_router(upload.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(report.router, prefix="/api")
 
 def get_version_date():
     """

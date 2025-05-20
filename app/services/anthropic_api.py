@@ -45,7 +45,7 @@ def save_analysis_json(analysis: Dict[str, Any], team_name: str, is_our_team: bo
         Path to the saved JSON file
     """
     # Create directory if it doesn't exist
-    json_dir = "/app/data/analysis_json"
+    json_dir = f"{config.base_dir}/app/data/analysis_json"
     os.makedirs(json_dir, exist_ok=True)
     
     # Generate filename with timestamp
@@ -490,7 +490,7 @@ def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, An
         return simulate_game_locally(team_analysis, opponent_analysis)
         
     # Load prompt template
-    prompt_path = os.path.join("/app/prompts", "game_simulation_prompt.txt")
+    prompt_path = os.path.join(f"{config.base_dir}/app/prompts", "game_simulation_prompt.txt")
     with open(prompt_path, "r") as file:
         prompt_template = file.read()
     

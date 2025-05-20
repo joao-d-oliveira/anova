@@ -12,3 +12,4 @@ terraform/terraform.tfvars
 /app/frontend/node_modules/
 /app/frontend/dist/
 **/__pycache__/
+.DS_Store

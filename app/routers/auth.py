@@ -1,19 +1,19 @@
-from fastapi import APIRouter, Request, Response, Form, HTTPException, Depends, status
-from fastapi.responses import JSONResponse
-from typing import Optional
-import os
-from pathlib import Path
+import random
+from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
 import secrets
-from app.services.email import send_reset_password_email, send_verify_email
 import bcrypt
-from datetime import datetime, timedelta
+import datetime
 from pydantic import BaseModel, EmailStr, constr
+from jose import jwt
+
+from app.routers.util import get_verified_user_email
+from app.services.email import send_reset_password_email, send_verify_email
 from app.config import Config
 
+
 from app.database.connection import (
-    create_user, get_user_by_email, update_user_password,
-    create_session, get_session, delete_session, delete_expired_sessions,
-    create_unique_token, verify_unique_token
+    confirm_user, create_user, delete_otp, get_public_user_by_email, get_user_by_email, update_user_password,
+    create_session, delete_session, create_otp, verify_otp
 )
 
 
@@ -41,9 +41,13 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class UserConfirm(BaseModel):
+    email: EmailStr
+    code: str
+
 class UserResponse(UserBase):
     id: int
-    created_at: datetime
+    created_at: datetime.datetime
 
     class Config:
         from_attributes = True
@@ -51,7 +55,7 @@ class UserResponse(UserBase):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    expires_at: datetime
+    expires_at: datetime.datetime
 
 class MessageResponse(BaseModel):
     detail: str
@@ -68,6 +72,37 @@ def verify_password(password: str, hashed: str) -> bool:
 def create_session_token() -> str:
     """Create a new session token"""
     return secrets.token_urlsafe(32)
+
+def get_cookie_dict(token: str):
+    return {
+        "key": "Authorization",
+        "value": f"Bearer {token}",
+        "httponly": True,
+        "secure": config.environment != "development",
+        "samesite": "lax",
+        "max_age": 7 * 24 * 60 * 60
+    }
+
+
+def validate_password(password: str) -> tuple[bool, str]:
+    """Validate password requirements"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    
+    if not any(c.isupper() for c in password):
+        return False, "Password must have uppercase characters"
+    
+    if not any(c.islower() for c in password):
+        return False, "Password must have lowercase characters"
+    
+    if not any(c.isdigit() for c in password):
+        return False, "Password must have numeric characters"
+    
+    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in password):
+        return False, "Password must have symbol characters"
+    
+    return True, ""
+
 
 @router.post("/login", response_model=TokenResponse)
 async def login_user(user_data: UserLogin):
@@ -89,7 +124,7 @@ async def login_user(user_data: UserLogin):
     
     # Create session
     session_token = create_session_token()
-    expires_at = datetime.now() + timedelta(days=30)
+    expires_at = datetime.datetime.now() + datetime.timedelta(days=30)
     
     session_id = create_session(user["id"], session_token, expires_at.isoformat())
     if not session_id:
@@ -103,14 +138,43 @@ async def login_user(user_data: UserLogin):
         expires_at=expires_at
     )
 
-@router.post("/confirm-email", response_model=MessageResponse)
-async def confirm_email(unique_token: str):
+@router.post("/confirm-email")
+async def confirm_email(data: UserConfirm):
     # Get unique token from database
+    user = get_user_by_email(data.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Error confirming email"
+        )
+    
+    if not verify_otp(user['id'], data.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid code"
+        )
+    
+    if user['confirmed']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already confirmed"
+        )
+    
+    confirm_user(user['id'])
+    delete_otp(user['id'], data.code)
 
-    # If token is valid, update user email_verified to True
+    token = jwt.encode(
+        {"sub": data.email, "exp": datetime.datetime.now() + datetime.timedelta(days=7)},
+        config.session_secret_key,
+        algorithm="HS256",
+    )
 
-    # Return success
-    return MessageResponse(detail="Successfully confirmed email")
+    response = Response(status_code=200)
+    response.set_cookie(
+        **get_cookie_dict(token)
+    )
+
+    return response
 
 @router.post("/logout", response_model=MessageResponse)
 async def logout_user(request: Request):
@@ -175,8 +239,8 @@ async def register_user(user_data: UserCreate):
         )
     
     # Generate unique token for email confirmation
-    unique_token = secrets.token_urlsafe(32)
-    create_unique_token(user_id, unique_token)
+    unique_token = ''.join(random.choices('0123456789', k=6))
+    create_otp(user_id, unique_token)
 
     # Send email with unique token
     send_verify_email(user_data.email, unique_token, config)
@@ -196,7 +260,7 @@ async def forgot_password(email: EmailStr):
     
     # Generate reset token
     reset_token = secrets.token_urlsafe(32)
-    create_unique_token(user["id"], reset_token)
+    create_otp(user["id"], reset_token)
     
     # Store reset token in database
     send_reset_password_email(email, reset_token, config)
@@ -209,7 +273,7 @@ async def forgot_password(email: EmailStr):
 async def reset_password(
     email: EmailStr,
     token: str,
-    new_password: constr(min_length=8),
+    new_password: str,
     confirm_password: str
 ):
     """Complete password reset"""
@@ -254,21 +318,11 @@ async def reset_password(
         detail="Password reset successful! You can now log in with your new password."
     )
 
-def validate_password(password: str) -> tuple[bool, str]:
-    """Validate password requirements"""
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
-    
-    if not any(c.isupper() for c in password):
-        return False, "Password must have uppercase characters"
-    
-    if not any(c.islower() for c in password):
-        return False, "Password must have lowercase characters"
-    
-    if not any(c.isdigit() for c in password):
-        return False, "Password must have numeric characters"
-    
-    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in password):
-        return False, "Password must have symbol characters"
-    
-    return True, ""
+@router.get("/me", response_model=UserBase)
+async def get_me(user_email: str = Depends(get_verified_user_email)):
+    """Get the current user"""
+    user = get_public_user_by_email(user_email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    return UserBase.model_validate(user)
+

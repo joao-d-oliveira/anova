@@ -26,8 +26,9 @@ const Error404 = React.lazy(() => import("./pages/Error404"));
 const Signup = React.lazy(() => import("./pages/auth/Signup"));
 const Login = React.lazy(() => import("./pages/auth/Login"));
 const ForgotPassword = React.lazy(() => import("./pages/auth/ForgotPassword"));
-
-
+const Dashboard = React.lazy(() => import("./pages/dashboard/Dashboard"));
+const Analysis = React.lazy(() => import("./pages/dashboard/Task"));
+const GameReport = React.lazy(() => import("./pages/dashboard/GameReport"));
 
 const staticPaths: RouteRecord[] = [
   {
@@ -47,6 +48,20 @@ const staticPaths: RouteRecord[] = [
           {
             path: "forgot-password", Component: ForgotPassword,
           },
+        ]
+      },
+      {
+        path: "dashboard", Component: DashboardLayout,
+        children: [
+          {
+            path: "", Component: Dashboard,
+          },
+          {
+            path: "analysis", Component: Analysis,
+          },
+          {
+            path: "game-report", Component: GameReport,
+          }
         ]
       },
       { path: "404", Component: Error404 },

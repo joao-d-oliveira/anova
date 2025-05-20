@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     school VARCHAR(100),
     role VARCHAR(50),
     password_hash VARCHAR(255) NOT NULL,
+    confirmed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS coaches (
 -- Create games table (updated with user_id)
 CREATE TABLE IF NOT EXISTS games (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
     home_team_id INTEGER REFERENCES teams(id),
     away_team_id INTEGER REFERENCES teams(id),
     user_id INTEGER REFERENCES users(id),
@@ -210,6 +212,7 @@ CREATE TABLE IF NOT EXISTS simulation_details (
 -- Create reports table
 CREATE TABLE IF NOT EXISTS reports (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
     game_id INTEGER REFERENCES games(id),
     report_type VARCHAR(50),
     file_path VARCHAR(255),
@@ -217,11 +220,11 @@ CREATE TABLE IF NOT EXISTS reports (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create one_time_tokens table
-CREATE TABLE IF NOT EXISTS one_time_tokens (
+-- Create one_time_passwords table
+CREATE TABLE IF NOT EXISTS one_time_passwords (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
-    token VARCHAR(64) NOT NULL UNIQUE,
+    otp VARCHAR(10) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -239,7 +242,7 @@ COMMENT ON TABLE game_simulations IS 'Stores game simulation results';
 COMMENT ON TABLE player_projections IS 'Stores player projection data from game simulations';
 COMMENT ON TABLE simulation_details IS 'Stores detailed simulation results';
 COMMENT ON TABLE reports IS 'Stores generated reports';
-COMMENT ON TABLE one_time_tokens IS 'Stores confirmation tokens for user verification and password reset';
+COMMENT ON TABLE one_time_passwords IS 'Stores one-time password tokens for user verification and password reset';
 
 -- Create indexes for performance optimization
 CREATE INDEX idx_players_team_id ON players(team_id);
@@ -265,5 +268,5 @@ CREATE INDEX idx_simulation_details_game_id ON simulation_details(game_id);
 CREATE INDEX idx_simulation_details_home_team_id ON simulation_details(home_team_id);
 CREATE INDEX idx_simulation_details_away_team_id ON simulation_details(away_team_id);
 CREATE INDEX idx_reports_game_id ON reports(game_id);
-CREATE INDEX idx_one_time_tokens_user_id ON one_time_tokens(user_id);
-CREATE INDEX idx_one_time_tokens_token ON one_time_tokens(token);
+CREATE INDEX idx_one_time_passwords_user_id ON one_time_passwords(user_id);
+CREATE INDEX idx_one_time_passwords_otp ON one_time_passwords(otp);

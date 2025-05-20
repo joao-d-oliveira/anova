@@ -1,32 +1,36 @@
+import asyncio
 import os
 import uuid
 import shutil
 import json
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Form, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from typing import List, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any
 from pathlib import Path
 from datetime import datetime
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from pydantic import BaseModel, Field
 
+
+from app.config import Config
+from app.routers.util import get_verified_user_email
 from app.services.anthropic_api import analyze_team_pdf, simulate_game
 from app.services.report_gen import generate_report
 from app.database.connection import (
-    insert_team, insert_team_stats, insert_player, insert_player_stats,
+    get_user_by_email, insert_team, insert_team_stats, insert_player, insert_player_stats,
     insert_team_analysis, insert_game, insert_game_simulation, insert_report,
     get_recent_analyses, execute_query, insert_player_raw_stats,
-    insert_player_projections, insert_simulation_details, find_player_by_name
+    insert_player_projections, insert_simulation_details, find_player_by_name, update_team_stats_game_id
 )
 
 # Set up Jinja2 templates
-root = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(root, "../templates"))
+config = Config()
 
 router = APIRouter(
-    prefix="/api",
+    prefix="/upload",
     tags=["upload"],
     responses={404: {"description": "Not found"}},
 )
@@ -45,32 +49,38 @@ PROCESSING_STEPS = [
     "Generating final report"
 ]
 
-@router.get("/analyses", response_class=HTMLResponse)
-async def get_analyses(request: Request):
+
+class ProcessingTask(BaseModel):
+    task_id: str
+    status: Literal["processing", "completed", "failed"]
+    files: List[str]
+    timestamp: str
+    team_name: str
+    opponent_name: str
+    step_description: str
+    current_step: int
+    total_steps: int
+    game_report_path: Optional[str] = None
+    game_report_uuid: Optional[str] = None
+    game_uuid: Optional[str] = None
+
+class UploadProcessResponse(BaseModel):
+    task_id: str
+    status: Literal["processing", "completed", "failed"]
+
+@router.get("/analyses", response_class=JSONResponse)
+async def get_analyses(request: Request,  user_email = Depends(get_verified_user_email)):
     """
     Get recent analyses and display them on a webpage
     """
-    # Get current user from request state
-    user = getattr(request.state, "user", None)
-    user_id = None
-    
-    # If user is authenticated, get or create user in database
-    if user and "sub" in user and user["sub"]:
-        from database.connection import get_or_create_user
-        user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
-    
-    # Get analyses filtered by user_id
-    analyses = get_recent_analyses(limit=10, user_id=user_id)
-    
-    return templates.TemplateResponse(
-        "analyses.html", 
-        {
-            "request": request, 
-            "analyses": analyses
-        }
-    )
+    user = get_user_by_email(user_email)
 
-@router.post("/upload/")
+    # Get analyses filtered by user_id
+    analyses = get_recent_analyses(limit=10, user_id=user['id'])
+    
+    return JSONResponse(content={"analyses": analyses})
+
+@router.post("/upload", response_model=UploadProcessResponse)
 async def upload_files(
     background_tasks: BackgroundTasks,
     request: Request,
@@ -78,7 +88,8 @@ async def upload_files(
     opponent_files: UploadFile = File(...),
     team_name: Optional[str] = Form(None),
     opponent_name: Optional[str] = Form(None),
-    use_local_simulation: Optional[bool] = Form(False)
+    use_local_simulation: Optional[bool] = Form(False),
+    user_email: str = Depends(get_verified_user_email)
 ):
     """
     Upload PDF files for analysis - one for our team and one for the opponent
@@ -93,7 +104,7 @@ async def upload_files(
     # Create a unique task ID
     task_id = str(uuid.uuid4())
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    task_dir = f"/app/temp/uploads/{task_id}"
+    task_dir = f"{config.base_dir}/app/temp/uploads/{task_id}"
     os.makedirs(task_dir, exist_ok=True)
     
     # Save uploaded files
@@ -102,13 +113,15 @@ async def upload_files(
     # Save team file
     team_file_path = f"{task_dir}/team_{team_files.filename}"
     with open(team_file_path, "wb") as buffer:
-        shutil.copyfileobj(team_files.file, buffer)
+        content = await team_files.read()
+        buffer.write(content)
     file_paths.append(team_file_path)
     
     # Save opponent file
     opponent_file_path = f"{task_dir}/opponent_{opponent_files.filename}"
     with open(opponent_file_path, "wb") as buffer:
-        shutil.copyfileobj(opponent_files.file, buffer)
+        content = await opponent_files.read()
+        buffer.write(content)
     file_paths.append(opponent_file_path)
     
     # Initialize task status
@@ -125,30 +138,34 @@ async def upload_files(
     }
     
     # Get current user from request state
-    user = getattr(request.state, "user", None)
+    user = get_user_by_email(user_email)
     
     # Process files in background
     background_tasks.add_task(
         process_files, 
         task_id, 
         file_paths, 
+        user,
         team_name, 
         opponent_name,
         use_local_simulation,
-        user
     )
-    
-    return {"task_id": task_id, "status": "processing"}
 
-@router.get("/status/{task_id}")
-async def get_status(task_id: str):
+    return UploadProcessResponse(
+        task_id=task_id,
+        status="processing"
+    )
+
+@router.get("/status/{task_id}", response_model=ProcessingTask)
+def get_status(task_id: str):
     """
     Get the status of a processing task
     """
     if task_id not in processing_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    return processing_tasks[task_id]
+    print(processing_tasks[task_id])
+    return ProcessingTask(**processing_tasks[task_id], task_id=task_id)
 
 @router.get("/download/{task_id}")
 async def download_report(task_id: str):
@@ -412,7 +429,7 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
             doc.add_paragraph(f"• {weakness}", style='List Bullet')
     
     # Save the document
-    report_dir = "/app/temp/reports"
+    report_dir = f"{config.base_dir}/app/temp/reports"
     os.makedirs(report_dir, exist_ok=True)
     report_filename = f"{team_name} - Team Analysis - {timestamp}.docx"
     report_path = os.path.join(report_dir, report_filename)
@@ -420,7 +437,9 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
     
     return report_path
 
-async def process_files(task_id: str, file_paths: List[str], team_name: Optional[str], opponent_name: Optional[str], use_local_simulation: bool = False, user: Optional[Dict] = None):
+# it must NOT be async, otherwise it will mess with the fast api event loop and continuously
+# freeze it
+def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Optional[str], opponent_name: Optional[str], use_local_simulation: bool = False):
     """
     Process uploaded PDF files and generate a report
     """
@@ -505,14 +524,13 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             
             # Insert game with user ID if available
             print("DEBUG - Inserting game into database")
-            user_id = None
-            if user and "sub" in user and user["sub"]:
-                from database.connection import get_or_create_user
-                user_id = get_or_create_user(user["sub"], user.get("email", ""), user.get("name", ""))
-                print(f"DEBUG - User ID: {user_id}")
+            user_id = user['id']
             
-            game_id = insert_game(team_id, opponent_id, user_id)
-            print(f"DEBUG - Game ID: {game_id}")
+            game_id, game_uuid = insert_game(team_id, opponent_id, user_id)
+            print(f"DEBUG - Game ID: {game_id}, Game UUID: {game_uuid}")
+
+            update_team_stats_game_id(team_stats_id, game_id)
+            update_team_stats_game_id(opponent_stats_id, game_id)
             
             # Step 4: Generate team analysis report
             processing_tasks[task_id]["current_step"] = 3
@@ -531,8 +549,8 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
             # Insert reports
             if game_id:
                 print("DEBUG - Inserting reports into database")
-                team_report_id = insert_report(game_id, "team_analysis", team_analysis_path)
-                opponent_report_id = insert_report(game_id, "opponent_analysis", opponent_analysis_path)
+                team_report_id, _ = insert_report(game_id, "team_analysis", team_analysis_path)
+                opponent_report_id, _ = insert_report(game_id, "opponent_analysis", opponent_analysis_path)
                 print(f"DEBUG - Team Report ID: {team_report_id}, Opponent Report ID: {opponent_report_id}")
             
             # Step 6: Simulate game
@@ -735,31 +753,31 @@ async def process_files(task_id: str, file_paths: List[str], team_name: Optional
                 analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("A/TO", 0))
         
         # Generate combined report
-        report_path = generate_report(analysis_results, simulation_results)
+        game_report_path = generate_report(analysis_results, simulation_results)
         print("Generated final report")
         # print("-"*40 + "\n" + "DEBUG - Combined Report Path:", report_path)
         
         # Insert combined report
         if game_id:
-            insert_report(game_id, "game_analysis", report_path)
+            insert_report(game_id, "game_analysis", game_report_path)
         
         # Update task status
         processing_tasks[task_id]["status"] = "completed"
-        processing_tasks[task_id]["report_path"] = report_path
+        processing_tasks[task_id]["game_report_path"] = game_report_path
         processing_tasks[task_id]["team_analysis_path"] = team_analysis_path
         processing_tasks[task_id]["opponent_analysis_path"] = opponent_analysis_path
-        processing_tasks[task_id]["game_id"] = game_id if game_id else None
-        
+        processing_tasks[task_id]["game_uuid"] = game_uuid if game_uuid else None
+
         # Get the report ID from the database
         if game_id:
             report_query = """
-            SELECT id FROM reports 
+            SELECT uuid FROM reports 
             WHERE game_id = %s AND report_type = 'game_analysis'
             ORDER BY created_at DESC LIMIT 1
             """
             report_result = execute_query(report_query, (game_id,))
             if report_result:
-                processing_tasks[task_id]["report_id"] = report_result[0]["id"]
+                processing_tasks[task_id]["game_report_uuid"] = report_result[0]["uuid"]
         
     except Exception as e:
         # Update task status with error

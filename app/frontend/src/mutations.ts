@@ -1,6 +1,8 @@
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserCreate, UserLogin } from './generated/client';
+import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
+import { BodyUploadFilesApiUploadUploadPost, OverallReport, ProcessingTask, UploadProcessResponse, UserBase, UserConfirm, UserCreate, UserLogin } from './generated/client';
 import { errorNotification } from './common/notifications';
+import { colorsTuple } from '@mantine/core';
+import { useState } from 'react';
 
 export const queryClient = new QueryClient();
 
@@ -11,7 +13,7 @@ async function processedFetch<T>(
     handleError: boolean = true
 ): Promise<T> {
     let response: Response;
-    response = await fetch(`/api/${url}`, {
+    response = await fetch(`/api${url}`, {
         ...options,
     });
 
@@ -46,7 +48,23 @@ export const useRegister = () => {
             errorNotification(error.message);
         },
     });
-    return { register };
+
+    const confirmAccount = useMutation({
+        mutationFn: async (data: UserConfirm) => {
+            await processedFetch<void>("/auth/confirm-email", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(data),
+            }, false);
+        },
+        onError: (error) => {
+            errorNotification(error.message);
+        },
+    });
+
+    return { register, confirmAccount };
 };
 
 export const useLogin = () => {
@@ -65,4 +83,66 @@ export const useLogin = () => {
         },
     });
     return { login };
+};
+
+export const useUser = () => {
+    const user = useQuery({
+        queryKey: ["user"],
+        queryFn: async () => await processedFetch<UserBase>("/auth/me"),
+        staleTime: 1000 * 60 * 5, // Refetch every 5 minutes
+        retry: false,
+    });
+    return user;
+};
+
+
+export const useUpload = () => {
+    const upload = useMutation({
+        mutationFn: async (data: BodyUploadFilesApiUploadUploadPost) => {
+            const formData = new FormData();
+            formData.append('team_files', data.team_files);
+            formData.append('opponent_files', data.opponent_files);
+            if (data.team_name) formData.append('team_name', data.team_name);
+            if (data.opponent_name) formData.append('opponent_name', data.opponent_name);
+            if (data.use_local_simulation !== undefined) {
+                formData.append('use_local_simulation', data.use_local_simulation.toString());
+            }
+
+            return await processedFetch<UploadProcessResponse>("/upload", {
+                method: "POST",
+                body: formData,
+            });
+        },
+    });
+    return { upload };
+};
+
+export const useAnalysis = ({ task_id }: { task_id: string }) => {
+    const [analysis, setAnalysis] = useState<ProcessingTask | null>(null);
+    const status = useQuery({
+        queryKey: ["analysis", task_id],
+        queryFn: async () => {
+            const response = await processedFetch<ProcessingTask>("/upload/status/" + task_id);
+            setAnalysis(response);
+            return response;
+        },
+        enabled: !!task_id,
+        refetchInterval: (data) => {
+            if(data.state?.error?.cause === 404) {
+                return false
+            }
+            return analysis == null || analysis.status == "processing" ? 2000 : false;
+        },
+        retryDelay: 2000
+    });
+    return { status };
+};
+
+export const useReport = ({ game_uuid }: { game_uuid: string }) => {
+    const overallReport = useQuery({
+        queryKey: ["report", game_uuid],
+        queryFn: async () => await processedFetch<OverallReport>("/report/" + game_uuid),
+    });
+
+    return { overallReport };
 };
