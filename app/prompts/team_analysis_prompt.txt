@@ -30,73 +30,80 @@ Pay special attention to extracting the following team stats:
 13. For situational_adjustments, provide at least 3 adjustments for different game scenarios.
 14. For game_keys, provide at least 3 key goals that would lead to a win.
 
-Return only the JSON object without any additional text or explanation.
+Return only the JSON object without any additional text or explanation, which should follow the structure of the pydantic model TeamWrapper described below:
 
-# Output JSON structure
 
-{
-    "team_name": <string>, # Team name
-    "record_date": <string>, # Date of the record "yyyy-mm-dd"
-    "team_ranking": <string>, # Team ranking
-    "team_stats": {
-        "PPG": <number>, # Points per game - in order to obtain this, you need to divide the points each player scored by the number of games that player played
-        "FG%": <string>, # Field goal percentage - Calculate this by dividing TOTAL team field goals made (sum of all players' FGM) by TOTAL team field goals attempted (sum of all players' FGA). Format as a percentage with one decimal place (e.g., "37.9%"). Do NOT average the individual percentages.
-        "3FG%": <string>, # Three-point field goal percentage - in order to obtain this, you need to divide the three-point field goals made by the three-point field goals attempted
-        "FT%": <string>, # Free throw percentage - in order to obtain this, you need to divide the free throws made by the free throws attempted
-        "REB": <number>, # Total rebounds - in order to obtain this, you need to sum the offensive rebounds and defensive rebounds, divided by the number of games played
-        "OREB": <number>, # Offensive rebounds - in order to obtain this, you need to sum the offensive rebounds and divide by the number of games played
-        "DREB": <number>, # Defensive rebounds - in order to obtain this, you need to sum the defensive rebounds and divide by the number of games played
-        "AST": <number>, # Assists - in order to obtain this, you need to sum the assists and divide by the number of games played
-        "STL": <number>, # Steals - in order to obtain this, you need to sum the steals and divide by the number of games played
-        "BLK": <number>, # Blocks - in order to obtain this, you need to sum the blocks and divide by the number of games played
-        "TO": <number>, # Turnovers - in order to obtain this, you need to sum the turnovers and divide by the number of games played
-        "A/TO": <number> # Assist to turnover ratio - in order to obtain this, you need to divide the assists by the turnovers
-    }
-    "players": [ # List of players
-        {
-            "name": <string>, # Player name
-            "number": <string>, # Player number
-            "position": <string>, # Player position
-            "stats": {
-                "GP": <number>, # Games played
-                "PPG": <number>, # Points per game
-                "FG%": <string>, # Field goal percentage
-                "3FG%": <string>, # Three-point field goal percentage
-                "FT%": <string>, # Free throw percentage
-                "RPG": <number>, # Rebounds per game
-                "APG": <number>, # Assists per game
-                "SPG": <number>, # Steals per game
-                "BPG": <number>, # Blocks per game
-                "TOPG": <number>, # Turnovers per game
-                "MINS": <number> # Minutes per game
-                "FGM": <number>, # Field goals made
-                "FGA": <number>, # Field goals attempted
-                "2FGM": <number>, # Two-point field goals made
-                "2FGA": <number>, # Two-point field goals attempted
-                "3FGM": <number>, # Three-point field goals made
-                "3FGA": <number>, # Three-point field goals attempted
-                "FTM": <number>, # Free throws made
-                "FTA": <number>, # Free throws attempted
-                AST: <number>, # Total Assists
-                TO: <number>, # Total Turnovers
-                STL: <number>, # Total Steals
-                BLK: <number>, # Total Blocks
-                REB: <number>, # Total Rebounds
-                OREB: <number>, # Total Offensive Rebounds
-                DREB: <number>, # Total Defensive Rebounds
-            }
-            "strengths": [<string>], # Player strengths
-            "weaknesses": [<string>] # Player weaknesses
-        }
-    ],
-    "team_strengths": [<string>], # Team strengths
-    "team_weaknesses": [<string>], # Team weaknesses
-    "key_players": [<string>], # Key players
-    "playing_style": <string>, # Team playing style
-    "offensive_keys": [<string>], # Offensive keys
-    "defensive_keys": [<string>], # Defensive keys
-    "game_factors": [<string>], # Game factors
-    "rotation_plan": <string>, # Rotation plan
-    "situational_adjustments": [<string>], # Situational adjustments
-    "game_keys": [<string>] # Game keys
-}
+class PlayerStats(BaseModel):
+    GP: int
+    PPG: float
+    FG_percent: str
+    FG3_percent: str
+    FT_percent: str
+    RPG: float
+    APG: float
+    SPG: float
+    BPG: float
+    TOPG: float
+    MINS: float
+    FGM: int
+    FGA: int
+    FGM2: int
+    FGA2: int
+    FGM3: int
+    FGA3: int
+    FTM: int
+    FTA: int
+    AST: int
+    TO: int
+    STL: int
+    BLK: int
+    REB: int
+    OREB: int
+    DREB: int
+
+class Player(BaseModel):
+    name: str
+    number: str
+    position: str
+    stats: PlayerStats
+    strengths: List[str]
+    weaknesses: List[str]
+
+class TeamStats(BaseModel):
+    PPG: float
+    FG_percent: str
+    FG3_percent: str
+    FT_percent: str
+    REB: float
+    OREB: float
+    DREB: float
+    AST: float
+    STL: float
+    BLK: float
+    TO: float
+    A_TO: float
+
+class TeamDetails(BaseModel):
+    team_name: str
+    record: str = Field(description="The record of the team (e.g. 5-2)")
+    record_date: str
+    team_ranking: str
+    players: List[Player]
+
+class TeamAnalysis(BaseModel):
+    playing_style: str
+    team_strengths: List[str]
+    team_weaknesses: List[str]
+    key_players: List[str]
+    offensive_keys: List[str]
+    defensive_keys: List[str]
+    game_factors: List[str]
+    rotation_plan: str
+    situational_adjustments: List[str]
+    game_keys: List[str]
+
+class TeamWrapper(BaseModel):
+    team_analysis: TeamAnalysis
+    team_details: TeamDetails
+    team_stats: TeamStats
+

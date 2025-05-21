@@ -99,8 +99,9 @@ export const useUser = () => {
 
 export const useLogout = () => {
     const logout = useMutation({
-        mutationFn: async () => await processedFetch<void>("/auth/logout"),
+        mutationFn: async () => await processedFetch<void>("/auth/logout", {}, false),
         onSuccess: () => {
+            console.log("Logging out");
             window.location.href = "/auth/login";
         },
     });

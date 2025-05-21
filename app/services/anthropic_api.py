@@ -6,7 +6,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import anthropic
 import logging
-from config import Config
+import instructor
+from app.models import GameSimulation, TeamAnalysis, TeamWrapper
+from app.config import Config
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -16,6 +18,7 @@ config = Config()
 
 # Initialize Anthropic client
 client = anthropic.Anthropic(api_key=config.anthropics_api_key)
+client = instructor.from_anthropic(client)
 logger.info("Anthropic API client initialized")
 
 def encode_pdf_to_base64(file_path: str) -> str:
@@ -60,7 +63,7 @@ def save_analysis_json(analysis: Dict[str, Any], team_name: str, is_our_team: bo
     
     return file_path
 
-def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) -> Dict[str, Any]:
+def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) -> TeamWrapper:
     """
     Analyze a team's PDF using Claude 3.7 Anthropic API
     
@@ -83,7 +86,7 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
     
     # Extract and parse JSON from response
     try:
-        message = client.messages.create(
+        analysis = client.messages.create(
             model="claude-3-7-sonnet-20250219",
             max_tokens=8000,
             temperature=0.0,
@@ -97,136 +100,131 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
                         {"type": "text", "text": prompt_template}
                     ]
                 }
-            ]
+            ],
+            response_model=TeamWrapper
         )
 
-        # Look for JSON in the response
-        response_text = message.content[0].text
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
-        
-        if 0 <= json_start < json_end:
-            json_str = response_text[json_start:json_end]
-            analysis = json.loads(json_str)
+        analysis = post_process_team_stats(analysis)
+        return analysis
+        # if 0 <= json_start < json_end:
+        #     json_str = response_text[json_start:json_end]
+        #     analysis = json.loads(json_str)
             
-            # Post-process to ensure team stats are populated
-            analysis = post_process_team_stats(analysis)
-            team_name = analysis.get("team_name", "Unknown Team")
-            save_analysis_json(analysis, team_name, is_our_team)
+        #     # Post-process to ensure team stats are populated
+        #     analysis = post_process_team_stats(analysis)
+        #     team_name = analysis.get("team_name", "Unknown Team")
+        #     save_analysis_json(analysis, team_name, is_our_team)
             
-            return analysis
-        else:
-            # If no JSON found, return empty dict
-            return {}
+        #     return analysis
+        # else:
+        #     # If no JSON found, return empty dict
+        #     return {}
     except Exception as e:
         print(f"Error parsing JSON from Claude response: {e}")
         return {}
 
-def post_process_team_stats(analysis: Dict[str, Any]) -> Dict[str, Any]:
+def post_process_team_stats(analysis: TeamWrapper) -> TeamWrapper:
     """
     Post-process team statistics to ensure all fields are populated
     
     Args:
-        analysis: Dictionary containing team analysis
+        analysis: TeamWrapper object containing team analysis
         
     Returns:
-        Dictionary with post-processed team statistics
+        TeamWrapper with post-processed team statistics
     """
-    # Check if team_stats exists
-    if "team_stats" not in analysis:
-        analysis["team_stats"] = {}
-    
     # Get players data
-    players = analysis.get("players", [])
+    players = analysis.team_details.players
     
     # Calculate missing team stats from player stats if needed
-    total_FGM = sum(player.get("stats", {}).get("FGM", 0) for player in players)
-    total_FGA = sum(player.get("stats", {}).get("FGA", 0) for player in players)
-    total_2FGM = sum(player.get("stats", {}).get("2FGM", 0) for player in players)
-    total_2FGA = sum(player.get("stats", {}).get("2FGA", 0) for player in players)
-    total_3FGM = sum(player.get("stats", {}).get("3FGM", 0) for player in players)
-    total_3FGA = sum(player.get("stats", {}).get("3FGA", 0) for player in players)
-    total_FTM = sum(player.get("stats", {}).get("FTM", 0) for player in players)
-    total_FTA = sum(player.get("stats", {}).get("FTA", 0) for player in players)
-    total_AST = sum(player.get("stats", {}).get("AST", 0) for player in players)
-    total_TO = sum(player.get("stats", {}).get("TO", 0) for player in players)
+    team_stats = analysis.team_stats
+    team_stats.FGM = sum(player.stats.FGM for player in players)
+    team_stats.FGA = sum(player.stats.FGA for player in players)
+    team_stats.FGM2 = sum(player.stats.FGM2 for player in players)
+    team_stats.FGA2 = sum(player.stats.FGA2 for player in players)
+    team_stats.FGM3 = sum(player.stats.FGM3 for player in players)
+    team_stats.FGA3 = sum(player.stats.FGA3 for player in players)
+    team_stats.FTM = sum(player.stats.FTM for player in players)
+    team_stats.FTA = sum(player.stats.FTA for player in players)
+    team_stats.AST = sum(player.stats.AST for player in players)
+    team_stats.TO = sum(player.stats.TO for player in players)
 
-    total_BLK = sum(player.get("stats", {}).get("BLK", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-    total_REB = sum(player.get("stats", {}).get("REB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-    total_OREB = sum(player.get("stats", {}).get("OREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-    total_DREB = sum(player.get("stats", {}).get("DREB", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-    total_AST_G = sum(player.get("stats", {}).get("AST", 0) / player.get("stats", {}).get("GP", 1) for player in players)
-    total_STL = sum(player.get("stats", {}).get("STL", 0) / player.get("stats", {}).get("GP", 1) for player in players)
+    total_BLK = sum(player.stats.BLK / player.stats.GP for player in players)
+    total_REB = sum(player.stats.REB / player.stats.GP for player in players)
+    total_OREB = sum(player.stats.OREB / player.stats.GP for player in players)
+    total_DREB = sum(player.stats.DREB / player.stats.GP for player in players)
+    total_AST_G = sum(player.stats.AST / player.stats.GP for player in players)
+    total_STL = sum(player.stats.STL / player.stats.GP for player in players)
 
-    if total_FGA > 0 < total_FGM or "FG%" not in analysis["team_stats"]:
-        analysis["team_stats"]["FG%"] = f"{round((total_FGM / total_FGA) * 100, 1) if total_FGA > 0 else 0}%"
-    if total_2FGA > 0 < total_2FGM or "2FG%" not in analysis["team_stats"]:
-        analysis["team_stats"]["2FG%"] = f"{round((total_2FGM / total_2FGA) * 100, 1) if total_2FGA > 0 else 0}%"
-    if total_3FGA > 0 < total_3FGM or "3FG%" not in analysis["team_stats"]:
-        analysis["team_stats"]["3FG%"] = f"{round((total_3FGM / total_3FGA) * 100, 1) if total_3FGA > 0 else 0}%"
-    if total_FTA > 0 < total_FTM or "FT%" not in analysis["team_stats"]:
-        analysis["team_stats"]["FT%"] = f"{round((total_FTM / total_FTA) * 100, 1) if total_FTA > 0 else 0 }%"
+    # Update team stats
+    if team_stats.FGA > 0 < team_stats.FGM or not team_stats.FG_percent:
+        team_stats.FG_percent = f"{round((team_stats.FGM / team_stats.FGA) * 100, 1) if team_stats.FGA > 0 else 0}%"
+    if team_stats.FGA2 > 0 < team_stats.FGM2 or not team_stats.FG2_percent:
+        team_stats.FG2_percent = f"{round((team_stats.FGM2 / team_stats.FGA2) * 100, 1) if team_stats.FGA2 > 0 else 0}%"
+    if team_stats.FGA3 > 0 < team_stats.FGM3 or not team_stats.FG3_percent:
+        team_stats.FG3_percent = f"{round((team_stats.FGM3 / team_stats.FGA3) * 100, 1) if team_stats.FGA3 > 0 else 0}%"
+    if team_stats.FTA > 0 < team_stats.FTM or not team_stats.FT_percent:
+        team_stats.FT_percent = f"{round((team_stats.FTM / team_stats.FTA) * 100, 1) if team_stats.FTA > 0 else 0}%"
 
-    if total_AST > 0 < total_TO or "A/TO" not in analysis["team_stats"]:
-        analysis["team_stats"]["A/TO"] = round(total_AST / total_TO, 2) if total_TO > 0 else 0
+    if team_stats.AST > 0 < team_stats.TO or not team_stats.A_TO:
+        team_stats.A_TO = round(team_stats.AST / team_stats.TO, 2) if team_stats.TO > 0 else 0
 
-    if total_BLK > 0 or  "BLK"  not in analysis["team_stats"]:
-        analysis["team_stats"]["BLK"] = round(total_BLK, 1)  if total_BLK > 0 else 0
-    if total_REB > 0 or "REB" not in analysis["team_stats"]:
-        analysis["team_stats"]["REB"] = round(total_REB, 1) if total_REB > 0 else 0
-    if total_OREB > 0 or "OREB" not in analysis["team_stats"]:
-        analysis["team_stats"]["OREB"] = round(total_OREB, 1) if total_OREB > 0 else 0
-    if total_DREB > 0 or "DREB" not in analysis["team_stats"]:
-        analysis["team_stats"]["DREB"] = round(total_DREB, 1) if total_DREB > 0 else 0
-    if total_AST_G > 0 or "AST" not in analysis["team_stats"]:
-        analysis["team_stats"]["AST"] = round(total_AST_G, 1) if total_AST_G > 0 else 0
-    if total_STL > 0 or "STL" not in analysis["team_stats"]:
-        analysis["team_stats"]["STL"] = round(total_STL, 1) if total_STL > 0 else 0
+    if total_BLK > 0 or not team_stats.BLK:
+        team_stats.BLK = round(total_BLK, 1) if total_BLK > 0 else 0
+    if total_REB > 0 or not team_stats.REB:
+        team_stats.REB = round(total_REB, 1) if total_REB > 0 else 0
+    if total_OREB > 0 or not team_stats.OREB:
+        team_stats.OREB = round(total_OREB, 1) if total_OREB > 0 else 0
+    if total_DREB > 0 or not team_stats.DREB:
+        team_stats.DREB = round(total_DREB, 1) if total_DREB > 0 else 0
+    if total_AST_G > 0 or not team_stats.AST:
+        team_stats.AST = round(total_AST_G, 1) if total_AST_G > 0 else 0
+    if total_STL > 0 or not team_stats.STL:
+        team_stats.STL = round(total_STL, 1) if total_STL > 0 else 0
 
     # Calculate PPG if it's 0 or missing
-    if analysis["team_stats"].get("PPG", 0) == 0:
-        total_ppg = sum(player.get("stats", {}).get("PPG", 0) for player in players)
-        # If we have player PPG, use it as an estimate
-        if total_ppg > 0 or "PPG" not in analysis["team_stats"]:
-            analysis["team_stats"]["PPG"] = round(total_ppg, 1)
+    if not team_stats.PPG:
+        total_ppg = sum(player.stats.PPG for player in players)
+        if total_ppg > 0:
+            team_stats.PPG = round(total_ppg, 1)
 
     # Calculate REB if it's 0 or missing
-    if analysis["team_stats"].get("REB", 0) == 0:
-        total_rpg = sum(player.get("stats", {}).get("RPG", 0) for player in players)
-        if total_rpg > 0 or "REB" not in analysis["team_stats"]:
-            analysis["team_stats"]["REB"] = round(total_rpg, 1)
+    if not team_stats.REB:
+        total_rpg = sum(player.stats.RPG for player in players)
+        if total_rpg > 0:
+            team_stats.REB = round(total_rpg, 1)
 
     # Calculate AST if it's 0 or missing
-    if analysis["team_stats"].get("AST", 0) == 0:
-        total_apg = sum(player.get("stats", {}).get("APG", 0) for player in players)
-        if total_apg > 0 or "AST" not in analysis["team_stats"]:
-            analysis["team_stats"]["AST"] = round(total_apg, 1)
+    if not team_stats.AST:
+        total_apg = sum(player.stats.APG for player in players)
+        if total_apg > 0:
+            team_stats.AST = round(total_apg, 1)
 
     # Calculate STL if it's 0 or missing
-    if analysis["team_stats"].get("STL", 0) == 0:
-        total_spg = sum(player.get("stats", {}).get("SPG", 0) for player in players)
-        if total_spg > 0 or "STL" not in analysis["team_stats"]:
-            analysis["team_stats"]["STL"] = round(total_spg, 1)
+    if not team_stats.STL:
+        total_spg = sum(player.stats.SPG for player in players)
+        if total_spg > 0:
+            team_stats.STL = round(total_spg, 1)
 
     # Calculate BLK if it's 0 or missing
-    if analysis["team_stats"].get("BLK", 0) == 0:
-        total_bpg = sum(player.get("stats", {}).get("BPG", 0) for player in players)
+    if not team_stats.BLK:
+        total_bpg = sum(player.stats.BPG for player in players)
         if total_bpg > 0:
-            analysis["team_stats"]["BLK"] = round(total_bpg, 1)
+            team_stats.BLK = round(total_bpg, 1)
 
     # Calculate TO if it's 0 or missing
-    if analysis["team_stats"].get("TO", 0) == 0:
-        total_topg = sum(player.get("stats", {}).get("TOPG", 0) for player in players)
-        if total_topg > 0 or "TO" not in analysis["team_stats"]:
-            analysis["team_stats"]["TO"] = round(total_topg, 1)
+    if not team_stats.TO:
+        total_topg = sum(player.stats.TOPG for player in players)
+        if total_topg > 0:
+            team_stats.TO = round(total_topg, 1)
 
     # Estimate OREB and DREB if REB is available but they're not
-    if analysis["team_stats"].get("REB", 0) > 0:
-        if analysis["team_stats"].get("OREB", 0) == 0 and analysis["team_stats"].get("DREB", 0) == 0:
+    if team_stats.REB > 0:
+        if not team_stats.OREB and not team_stats.DREB:
             # Typical split is about 30% offensive, 70% defensive
-            reb = analysis["team_stats"]["REB"]
-            analysis["team_stats"]["OREB"] = round(reb * 0.3, 1)
-            analysis["team_stats"]["DREB"] = round(reb * 0.7, 1)
+            reb = team_stats.REB
+            team_stats.OREB = round(reb * 0.3, 1)
+            team_stats.DREB = round(reb * 0.7, 1)
 
     return analysis
 
@@ -474,7 +472,7 @@ def runSimulations(teamA: Dict[str, Any], teamB: Dict[str, Any], numSimulations:
         "avgEffects": avgEffects
     }
 
-def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, Any], use_local: bool = False) -> Dict[str, Any]:
+def simulate_game(team_analysis: TeamWrapper, opponent_analysis: TeamWrapper, use_local: bool = False) -> GameSimulation:
     """
     Simulate a game between two teams using either local calculations or Claude API
     
@@ -496,14 +494,14 @@ def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, An
     
     # Create combined analysis for the prompt
     combined_analysis = {
-        "team": team_analysis,
-        "opponent": opponent_analysis
+        "team": team_analysis.model_dump(mode="json"),
+        "opponent": opponent_analysis.model_dump(mode="json")
     }
     
     # Create message
     message = client.messages.create(
         model="claude-3-7-sonnet-20250219",
-        max_tokens=4000,
+        max_tokens=8000,
         temperature=0.2,  # Slightly higher temperature for simulation variety
         system="You are an expert basketball analyst and simulator. You are simulating a game between two basketball teams based on their statistics.",
         messages=[
@@ -516,9 +514,12 @@ def simulate_game(team_analysis: Dict[str, Any], opponent_analysis: Dict[str, An
                     }
                 ]
             }
-        ]
+        ],
+        response_model=GameSimulation
     )
     
+    return message
+
     # Extract and parse JSON from response
     try:
         # Look for JSON in the response

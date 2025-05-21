@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 from typing import List, Optional
 import psycopg2
@@ -6,7 +7,8 @@ from psycopg2.extras import RealDictCursor
 import logging
 
 from pydantic import BaseModel
-from config import Config
+from app.config import Config
+from app.models import GameSimulation, Player, PlayerStats, TeamAnalysis, TeamDetails, TeamStats
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -77,7 +79,7 @@ def execute_query(query, params=None, fetch=True):
     finally:
         conn.close()
 
-def insert_team(team_data):
+def insert_team(team_details: TeamDetails, team_analysis: TeamAnalysis):
     """
     Insert a team into the database
     
@@ -88,27 +90,26 @@ def insert_team(team_data):
         Team ID if successful, None otherwise
     """
     query = """
-    INSERT INTO teams (name, record, ranking, playing_style, record_date)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO teams (name, record, ranking, record_date)
+    VALUES (%s, %s, %s, %s)
     RETURNING id
     """
     
     # Parse record_date if it exists, otherwise use current date
     from datetime import datetime
     record_date = None
-    if "record_date" in team_data:
+    if "record_date" in team_analysis:
         try:
-            record_date = datetime.strptime(team_data["record_date"], "%Y-%m-%d").date()
+            record_date = datetime.strptime(team_analysis["record_date"], "%Y-%m-%d").date()
         except:
             record_date = datetime.now().date()
     else:
         record_date = datetime.now().date()
     
     params = (
-        team_data.get("team_name"),
-        team_data.get("team_record"),
-        team_data.get("team_ranking"),
-        team_data.get("playing_style"),
+        team_details.team_name,
+        team_details.record,
+        team_details.team_ranking,
         record_date
     )
     
@@ -116,21 +117,19 @@ def insert_team(team_data):
     if result and len(result) > 0:
         return result[0]["id"]
     return None
-
-def insert_team_stats(team_id, stats_data, game_id=None, is_season_average=True):
+def insert_team_stats(team_id, stats_data: TeamStats, game_id=None, is_season_average=True):
     """
     Insert team statistics into the database
     
     Args:
         team_id: Team ID
-        stats_data: Dictionary containing team statistics
+        stats_data: TeamStats object containing team statistics
         game_id: Game ID (optional)
         is_season_average: Whether these stats are season averages
         
     Returns:
         Stats ID if successful, None otherwise
     """
-    # Using the exact column names from the database schema
     query = """
     INSERT INTO team_stats (
         team_id, game_id, is_season_average, ppg, fg_pct, 
@@ -144,59 +143,34 @@ def insert_team_stats(team_id, stats_data, game_id=None, is_season_average=True)
     
     print("DEBUG - Attempting to insert team stats with exact column names from database schema")
     
-    team_stats = stats_data.get("team_stats", {})
-    
-    # Convert numeric values
-    ppg = float(team_stats.get("PPG", 0))
-    rebounds = float(team_stats.get("REB", 0))
-    offensive_rebounds = float(team_stats.get("OREB", 0))
-    defensive_rebounds = float(team_stats.get("DREB", 0))
-    assists = float(team_stats.get("AST", 0))
-    steals = float(team_stats.get("STL", 0))
-    blocks = float(team_stats.get("BLK", 0))
-    turnovers = float(team_stats.get("TO", 0))
-    
     # Calculate assist to turnover ratio
     assist_to_turnover = 0
-    if turnovers > 0:
-        assist_to_turnover = round(assists / turnovers, 2)
+    if stats_data.TO > 0:
+        assist_to_turnover = round(stats_data.AST / stats_data.TO, 2)
     else:
-        assist_to_turnover = team_stats.get("A/TO", 0)
-    
-    # Extract percentages
-    fg_pct = team_stats.get("FG%", "0%")
-    fg3_pct = team_stats.get("3FG%", "0%")
-    ft_pct = team_stats.get("FT%", "0%")
-    
-    # Extract made and attempted values if available
-    fg_made = team_stats.get("FGM", 0)
-    fg_attempted = team_stats.get("FGA", 0)
-    fg3_made = team_stats.get("3FGM", 0)
-    fg3_attempted = team_stats.get("3FGA", 0)
-    ft_made = team_stats.get("FTM", 0)
-    ft_attempted = team_stats.get("FTA", 0)
+        assist_to_turnover = stats_data.A_TO
     
     params = (
         team_id,
         game_id,
         is_season_average,
-        ppg,
-        fg_pct,
-        fg_made,
-        fg_attempted,
-        fg3_pct,
-        fg3_made,
-        fg3_attempted,
-        ft_pct,
-        ft_made,
-        ft_attempted,
-        rebounds,
-        offensive_rebounds,
-        defensive_rebounds,
-        assists,
-        steals,
-        blocks,
-        turnovers,
+        stats_data.PPG,
+        stats_data.FG_percent,
+        stats_data.FGM, 
+        stats_data.FGA,  
+        stats_data.FG3_percent,
+        stats_data.FGM3,  
+        stats_data.FGA3,
+        stats_data.FT_percent,
+        stats_data.FTM,  
+        stats_data.FTA,  
+        stats_data.REB,
+        stats_data.OREB,
+        stats_data.DREB,
+        stats_data.AST,
+        stats_data.STL,
+        stats_data.BLK,
+        stats_data.TO,
         assist_to_turnover
     )
     
@@ -213,7 +187,7 @@ def update_team_stats_game_id(team_stats_id, game_id):
     """
     execute_query(query, (game_id, team_stats_id))
 
-def insert_player(team_id, player_data):
+def insert_player(team_id, player_data: Player):
     """
     Insert a player into the database
     
@@ -225,19 +199,21 @@ def insert_player(team_id, player_data):
         Player ID if successful, None otherwise
     """
     query = """
-    INSERT INTO players (team_id, name, number, position, height, weight, year)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO players (team_id, name, number, position, height, weight, year, strengths, weaknesses)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     
     params = (
         team_id,
-        player_data.get("name"),
-        player_data.get("number"),
-        player_data.get("position"),
-        player_data.get("height"),
-        player_data.get("weight"),
-        player_data.get("year")
+        player_data.name,
+        player_data.number,
+        player_data.position,
+        player_data.height,
+        player_data.weight,
+        player_data.year,
+        player_data.strengths,
+        player_data.weaknesses,
     )
     
     result = execute_query(query, params)
@@ -245,7 +221,7 @@ def insert_player(team_id, player_data):
         return result[0]["id"]
     return None
 
-def insert_player_stats(player_id, stats_data, game_id=None, is_season_average=True, player_raw_stats_id=None):
+def insert_player_stats(player_id, stats_data: PlayerStats, game_id=None, is_season_average=True, player_raw_stats_id=None):
     """
     Insert player statistics into the database
     
@@ -268,23 +244,21 @@ def insert_player_stats(player_id, stats_data, game_id=None, is_season_average=T
     RETURNING id
     """
     
-    player_stats = stats_data.get("stats", {})
-    
     params = (
         player_id,
         player_raw_stats_id,
         game_id,
-        int(player_stats.get("GP", 0)),
-        float(player_stats.get("PPG", 0)),
-        player_stats.get("FG%", "0%"),
-        player_stats.get("3FG%", "0%"),
-        player_stats.get("FT%", "0%"),
-        float(player_stats.get("RPG", 0)),
-        float(player_stats.get("APG", 0)),
-        float(player_stats.get("SPG", 0)),
-        float(player_stats.get("BPG", 0)),
-        float(player_stats.get("TOPG", 0)),
-        float(player_stats.get("MINS", 0)),
+        stats_data.GP,
+        stats_data.PPG,
+        stats_data.FG_percent,
+        stats_data.FG3_percent,
+        stats_data.FT_percent,
+        stats_data.RPG,
+        stats_data.APG,
+        stats_data.SPG,
+        stats_data.BPG,
+        stats_data.TOPG,
+        stats_data.MINS,
         is_season_average
     )
     
@@ -293,7 +267,7 @@ def insert_player_stats(player_id, stats_data, game_id=None, is_season_average=T
         return result[0]["id"]
     return None
 
-def insert_team_analysis(team_id, analysis_data):
+def insert_team_analysis(team_id, analysis_data: TeamAnalysis):
     """
     Insert team analysis into the database
     
@@ -306,7 +280,7 @@ def insert_team_analysis(team_id, analysis_data):
     """
     query = """
     INSERT INTO team_analysis (
-        team_id, strengths, weaknesses, key_players,
+        team_id, playing_style, strengths, weaknesses, key_players,
         offensive_keys, defensive_keys, game_factors,
         rotation_plan, situational_adjustments, game_keys
     )
@@ -316,15 +290,16 @@ def insert_team_analysis(team_id, analysis_data):
     
     params = (
         team_id,
-        analysis_data.get("team_strengths", []),
-        analysis_data.get("team_weaknesses", []),
-        analysis_data.get("key_players", []),
-        analysis_data.get("offensive_keys", []),
-        analysis_data.get("defensive_keys", []),
-        analysis_data.get("game_factors", []),
-        analysis_data.get("rotation_plan"),
-        analysis_data.get("situational_adjustments", []),
-        analysis_data.get("game_keys", [])
+        analysis_data.playing_style,
+        analysis_data.team_strengths,
+        analysis_data.team_weaknesses,
+        analysis_data.key_players,
+        analysis_data.offensive_keys,
+        analysis_data.defensive_keys,
+        analysis_data.game_factors,
+        analysis_data.rotation_plan,
+        analysis_data.situational_adjustments,
+        analysis_data.game_keys,
     )
     
     result = execute_query(query, params)
@@ -411,14 +386,13 @@ def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=No
     if result and len(result) > 0:
         return result[0]["id"], result[0]["uuid"]
     return None
-
-def insert_game_simulation(game_id, simulation_data):
+def insert_game_simulation(game_id, simulation_data: GameSimulation):
     """
     Insert game simulation into the database
     
     Args:
         game_id: Game ID
-        simulation_data: Dictionary containing simulation data
+        simulation_data: GameSimulation object containing simulation data
         
     Returns:
         Simulation ID if successful, None otherwise
@@ -427,34 +401,33 @@ def insert_game_simulation(game_id, simulation_data):
     INSERT INTO game_simulations (
         game_id, win_probability, projected_score,
         sim_overall_summary, sim_success_factors,
-        sim_key_matchups, sim_win_loss_patterns
+        sim_key_matchups, sim_win_loss_patterns,
+        sim_critical_advantage, sim_keys_to_victory,
+        sim_situational_adjustments, playbook_offensive_plays,
+        playbook_defensive_plays, playbook_special_situations,
+        playbook_inbound_plays, playbook_after_timeout_special_plays
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
     RETURNING id
     """
     
     print(f"DEBUG - Simulation data: {simulation_data}")
-    
-    # Extract simulation data with detailed logging
-    win_probability = simulation_data.get("win_probability")
-    projected_score = simulation_data.get("projected_score")
-    sim_overall_summary = simulation_data.get("sim_overall_summary")
-    sim_success_factors = simulation_data.get("sim_success_factors")
-    sim_key_matchups = simulation_data.get("sim_key_matchups")
-    sim_win_loss_patterns = simulation_data.get("sim_win_loss_patterns")
-    
-    print(f"DEBUG - Win probability: {win_probability}")
-    print(f"DEBUG - Projected score: {projected_score}")
-    print(f"DEBUG - Overall summary: {sim_overall_summary}")
-    
     params = (
         game_id,
-        win_probability,
-        projected_score,
-        sim_overall_summary,
-        sim_success_factors,
-        sim_key_matchups,
-        sim_win_loss_patterns
+        simulation_data.win_probability,
+        simulation_data.projected_score,
+        simulation_data.sim_overall_summary,
+        simulation_data.sim_success_factors,
+        simulation_data.sim_key_matchups,
+        simulation_data.sim_win_loss_patterns,
+        simulation_data.sim_critical_advantage,
+        simulation_data.sim_keys_to_victory,
+        json.dumps([adj.model_dump(mode="json") for adj in simulation_data.sim_situational_adjustments]),
+        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_offensive_plays]),
+        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_defensive_plays]),
+        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_special_situations]),
+        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_inbound_plays]),
+        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_after_timeout_special_plays]),
     )
     
     result = execute_query(query, params)
@@ -507,7 +480,7 @@ def get_report_by_game_id(game_id: int, report_type: str):
     result = execute_query(query, (game_id, report_type))
     return result[0]
 
-def insert_player_raw_stats(player_id, stats_data, game_id=None):
+def insert_player_raw_stats(player_id, stats_data: PlayerStats, game_id=None):
     """
     Insert raw player statistics into the database
     
@@ -529,28 +502,25 @@ def insert_player_raw_stats(player_id, stats_data, game_id=None):
     RETURNING id
     """
     
-    player_stats = stats_data.get("stats", {})
-    
     params = (
         player_id,
         game_id,
-        player_stats.get("FGM", 0),
-        player_stats.get("FGA", 0),
-        player_stats.get("2FGM", 0),
-        player_stats.get("2FGA", 0),
-        player_stats.get("3FGM", 0),
-        player_stats.get("3FGA", 0),
-        player_stats.get("FTM", 0),
-        player_stats.get("FTA", 0),
-        player_stats.get("REB", 0),
-        player_stats.get("OREB", 0),
-        player_stats.get("DREB", 0),
-        player_stats.get("AST", 0),
-        player_stats.get("STL", 0),
-        player_stats.get("BLK", 0),
-        player_stats.get("TO", 0)
+        stats_data.FGM,
+        stats_data.FGA,
+        stats_data.FGM2,
+        stats_data.FGA2,
+        stats_data.FGM3,
+        stats_data.FGA3,
+        stats_data.FTM,
+        stats_data.FTA,
+        stats_data.REB,
+        stats_data.OREB,
+        stats_data.DREB,
+        stats_data.AST,
+        stats_data.STL,
+        stats_data.BLK,
+        stats_data.TO
     )
-    
     result = execute_query(query, params)
     if result and len(result) > 0:
         return result[0]["id"]
@@ -840,7 +810,6 @@ def confirm_user(user_id: int):
     result = execute_query(query, (user_id), fetch=False)
     return result is not None
 
-
 def create_session(user_id: int, session_token: str, expires_at: str):
     """
     Create a new session for a user
@@ -959,14 +928,13 @@ def delete_otp(user_id: int, otp: str):
     result = execute_query(query, (user_id, otp), fetch=False)
 
 
-class Team(BaseModel):
+class TeamResponse(BaseModel):
     id: int
     name: str
     record: Optional[str]
     ranking: Optional[str]
-    playing_style: Optional[str]
 
-def get_team_by_id(team_id: int) -> Optional[Team]:
+def get_team_by_id(team_id: int) -> Optional[TeamResponse]:
     """
     Get a team by its ID
     
@@ -981,10 +949,10 @@ def get_team_by_id(team_id: int) -> Optional[Team]:
     """
     results = execute_query(query, (team_id,))
     if results and len(results) > 0:
-        return Team(**results[0])
+        return TeamResponse(**results[0])
     return None
 
-class TeamStats(BaseModel):
+class TeamStatsResponse(BaseModel):
     ppg: Optional[float]
     fg_pct: Optional[str]
     fg_made: Optional[float]
@@ -1005,7 +973,7 @@ class TeamStats(BaseModel):
     assist_to_turnover: Optional[float]
     is_season_average: Optional[bool]
 
-def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStats]:
+def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStatsResponse]:
     """
     Get team statistics for a specific game
     
@@ -1020,7 +988,7 @@ def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStats]:
     """
     results = execute_query(query, (game_id, team_id))
     if results:
-        return TeamStats(**results[0])
+        return TeamStatsResponse(**results[0])
     return None
 
 
@@ -1055,7 +1023,7 @@ def get_game_by_uuid(game_uuid: str) -> Optional[Game]:
         return Game(**results[0])
     return None
 
-class GameSimulation(BaseModel):
+class GameSimulationResponse(BaseModel):
     id: Optional[int]
     game_id: int
     win_probability: Optional[str]
@@ -1065,7 +1033,7 @@ class GameSimulation(BaseModel):
     sim_key_matchups: Optional[str]
     sim_win_loss_patterns: Optional[str]
 
-def get_game_simulation(game_id: int) -> Optional[GameSimulation]:
+def get_game_simulation(game_id: int) -> Optional[GameSimulationResponse]:
     """
     Get game simulation data for a specific game
     
@@ -1080,7 +1048,7 @@ def get_game_simulation(game_id: int) -> Optional[GameSimulation]:
     """
     results = execute_query(query, (game_id,))
     if results and len(results) > 0:
-        return GameSimulation(**results[0])
+        return GameSimulationResponse(**results[0])
     return None
 
 class ProjectedPlayer(BaseModel):

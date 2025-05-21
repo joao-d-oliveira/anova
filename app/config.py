@@ -102,7 +102,6 @@ class Config:
         # Load all environment variables
         self._load_database_config()
         self._load_aws_config()
-        self._load_cognito_config()
         self._load_api_keys()
         self._load_session_config()
         self._load_email_config()
@@ -130,11 +129,6 @@ class Config:
         self._values["noreply_access_key_id"] = os.getenv("NO_REPLY_ACCESS_KEY_ID")
         self._values["noreply_secret_access_key"] = os.getenv("NO_REPLY_SECRET_ACCESS_KEY")
     
-    def _load_cognito_config(self):
-        """Load Cognito configuration"""
-        self._values["cognito_user_pool_id"] = os.getenv("COGNITO_USER_POOL_ID")
-        self._values["cognito_client_id"] = os.getenv("COGNITO_CLIENT_ID")
-        self._values["cognito_client_secret"] = os.getenv("COGNITO_CLIENT_SECRET")
     
     def _load_api_keys(self):
         """Load API keys"""
@@ -163,13 +157,6 @@ class Config:
             ("session_secret_key", self.session_secret_key)
         ]
         
-        # Only validate Cognito if not in development mode
-        if self.environment != "development":
-            required_vars.extend([
-                ("cognito_user_pool_id", self.cognito_user_pool_id),
-                ("cognito_client_id", self.cognito_client_id),
-                ("cognito_client_secret", self.cognito_client_secret)
-            ])
         
         missing = [name for name, value in required_vars if not value]
         if missing:
@@ -180,7 +167,6 @@ class Config:
         logger.info(f"Configuration loaded for environment: {self.environment}")
         logger.info(f"Database: {self.db_user}@{self.db_host}:{self.db_port}/{self.db_name}")
         logger.info(f"AWS Region: {self.aws_region}")
-        logger.info(f"Cognito configured: {bool(self.cognito_user_pool_id)}")
     
     def get_database_url(self) -> str:
         """Get the database URL for SQLAlchemy"""
@@ -238,18 +224,6 @@ class Config:
     @property
     def aws_secret_access_key(self) -> Optional[str]:
         return self._values.get("aws_secret_access_key")
-    
-    @property
-    def cognito_user_pool_id(self) -> Optional[str]:
-        return self._values.get("cognito_user_pool_id")
-    
-    @property
-    def cognito_client_id(self) -> Optional[str]:
-        return self._values.get("cognito_client_id")
-    
-    @property
-    def cognito_client_secret(self) -> Optional[str]:
-        return self._values.get("cognito_client_secret")
     
     @property
     def anthropics_api_key(self) -> Optional[str]:

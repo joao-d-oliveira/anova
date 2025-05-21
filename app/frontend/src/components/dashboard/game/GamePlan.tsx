@@ -3,11 +3,11 @@ import { Team, TeamStats } from "../../../generated/client";
 import { ProjectedPlayer } from "../../../generated/client";
 import PillStat from "./PillStat";
 
-export default function TeamAnalysis({ team, teamStats, playerStats }: { team: Team, teamStats: TeamStats, playerStats: ProjectedPlayer[] }) {
+export default function GamePlan({ team, teamStats, playerStats }: { team: Team, teamStats: TeamStats, playerStats: ProjectedPlayer[] }) {
     return (
         <>
             <Stack>
-                <Title order={2}>{team.name} Report</Title>
+                <Title order={2}>Game Plan</Title>
                 <Text>
                     {team.record}
                 </Text>

@@ -1,7 +1,95 @@
-You are an expert basketball analyst and simulator. I will provide you with analysis data for two basketball teams. Your task is to simulate a game between these teams and provide detailed simulation results.
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+from datetime import datetime
 
-Please simulate a game between the teams and return a JSON object which follows the structure described in the model GameSimulation:
+# Team Analysis
+class PlayerStats(BaseModel):
+    GP: int
+    PPG: float
+    FG_percent: str
+    FG3_percent: str
+    FT_percent: str
+    RPG: float
+    APG: float
+    SPG: float
+    BPG: float
+    TOPG: float
+    MINS: float
+    FGM: int
+    FGA: int
+    FGM2: int
+    FGA2: int
+    FGM3: int
+    FGA3: int
+    FTM: int
+    FTA: int
+    AST: int
+    TO: int
+    STL: int
+    BLK: int
+    REB: int
+    OREB: int
+    DREB: int
 
+class Player(BaseModel):
+    name: str
+    number: str
+    position: str
+    height: Optional[str] = None
+    weight: Optional[str] = None
+    year: Optional[str] = None
+    stats: PlayerStats
+    strengths: List[str]
+    weaknesses: List[str]
+
+class TeamStats(BaseModel):
+    PPG: float
+    FG_percent: str
+    FG2_percent: str
+    FG3_percent: str
+    FT_percent: str
+    REB: float
+    OREB: float
+    DREB: float
+    AST: float
+    STL: float
+    BLK: float
+    TO: float
+    A_TO: float
+    FGM: int
+    FGA: int
+    FGM2: int
+    FGA2: int
+    FGM3: int
+    FGA3: int
+    FTM: int
+    FTA: int
+
+class TeamDetails(BaseModel):
+    team_name: str
+    record: str = Field(description="The record of the team (e.g. 5-2)")
+    record_date: str
+    team_ranking: str
+    players: List[Player]
+
+class TeamAnalysis(BaseModel):
+    playing_style: str
+    team_strengths: List[str]
+    team_weaknesses: List[str]
+    key_players: List[str]
+    offensive_keys: List[str]
+    defensive_keys: List[str]
+    game_factors: List[str]
+    rotation_plan: str
+    situational_adjustments: List[str]
+    game_keys: List[str]
+
+class TeamWrapper(BaseModel):
+    team_analysis: TeamAnalysis
+    team_details: TeamDetails
+    team_stats: TeamStats
+
+# Game Simulation
 class SituationalAdjustment(BaseModel):
     scenario: str
     adjustment: str
@@ -28,6 +116,7 @@ class GameSimulation(BaseModel):
     playbook_defensive_plays: List[PlaybookPlay] = Field(description="Defensive plays for the game")
     playbook_special_situations: List[PlaybookPlay] = Field(description="Special situations for the game")
     playbook_inbound_plays: List[PlaybookPlay] = Field(description="Inbound plays for the game")
+    playbook_after_timeout_special_plays: List[PlaybookPlay] = Field(description="After Timeout / Special Scoring Plays")
 
     team_p1_name: str = Field(description="Name of team's player 1")
     team_p1_ppg: float = Field(description="Projected points per game for team's player 1")
@@ -124,173 +213,3 @@ class GameSimulation(BaseModel):
     opp_p6_fg: str = Field(description="Projected field goal percentage for opponent's player 6")
     opp_p6_3p: str = Field(description="Projected three-point percentage for opponent's player 6")
     opp_p6_role: str = Field(description="Role description for opponent's player 6 in the game")
-
-
-Simulation guidelines:
-1. Run 100 simulated games between the two teams.
-2. For "sim_overall_summary", provide a 1-2 sentence summary of the simulation results, including the number of wins for each team and the average score.
-3. For "sim_success_factors", provide a bullet list (using "- ") of 3-5 key factors that contributed to each team's success in the simulations. Use "\n" for line breaks.
-4. For "sim_key_matchups", provide a bullet list of 3-5 critical player-vs-player or positional matchups that significantly impacted the game outcomes.
-5. For "sim_win_loss_patterns", provide a bullet list of 3-5 key patterns observed in the wins and losses (e.g., when Team A shoots over 45% from the field, they win 80% of the time).
-6. For "win_probability", provide a sentence stating the win probability for the team (e.g., "Team A has a 65% win probability based on 100 simulations.").
-7. For "projected_score", provide the average projected score (e.g., "Team A 78 - Team B 72").
-8. For player stats, use the top 5 players from each team based on their PPG (points per game).
-9. For player stats, provide realistic projections based on their season averages with some game-to-game variance.
-10. For player roles, provide a short phrase describing their role in the game (e.g., "Primary scorer and playmaker", "Defensive anchor", "Three-point specialist").
-
-Simulation model details and algorithm:
-
-1. Team statistics used in simulation:
-   - Points per game (PPG)
-   - Rebounds per game (RPG)
-   - Assists per game (APG)
-   - Steals per game (SPG)
-   - Blocks per game (BPG)
-   - Turnovers per game (TPG)
-   - Field goal percentage (FG%)
-   - Three-point percentage (3P%)
-   - Free throw percentage (FT%)
-
-2. Simulation algorithm pseudocode:
-function simulateGame(teamA, teamB): // Start with actual scoring averages teamAScore = teamA.ppg teamBScore = teamB.ppg
-
- // Calculate statistical advantages and their point impacts
- reboundDiff = teamA.rpg - teamB.rpg
- reboundEffect = reboundDiff * 0.7
- 
- fgDiff = (teamA.fgPct - teamB.fgPct) * 100
- fgEffect = fgDiff * 0.25
- 
- threeDiff = (teamA.threePct - teamB.threePct) * 100
- threeEffect = threeDiff * 0.15
- 
- turnoverDiff = teamB.tpg - teamA.tpg
- turnoverEffect = turnoverDiff * 1.0
- 
- assistDiff = teamA.apg - teamB.apg
- assistEffect = assistDiff * 0.5
- 
- stealsDiff = teamA.spg - teamB.spg
- stealsEffect = stealsDiff * 1.0
- 
- blocksDiff = teamA.bpg - teamB.bpg
- blocksEffect = blocksDiff * 0.8
- 
- // Calculate total statistical effect
- totalEffect = reboundEffect + fgEffect + threeEffect + turnoverEffect + 
-               assistEffect + stealsEffect + blocksEffect
- 
- // Apply the statistical advantage to Team A's score
- teamAScore += totalEffect
- 
- // Add random game variance (±12%)
- gameVarianceA = 0.88 + (random() * 0.24)
- gameVarianceB = 0.88 + (random() * 0.24)
- 
- teamAScore = teamAScore * gameVarianceA
- teamBScore = teamBScore * gameVarianceB
- 
- // Round to integers for final scores
- finalTeamAScore = round(teamAScore)
- finalTeamBScore = round(teamBScore)
- 
- return {
-   teamAScore: finalTeamAScore,
-   teamBScore: finalTeamBScore,
-   winner: finalTeamAScore > finalTeamBScore ? teamA.name : teamB.name,
-   margin: abs(finalTeamAScore - finalTeamBScore),
-   effects: {
-     rebounding: reboundEffect,
-     fieldGoal: fgEffect,
-     threePoint: threeEffect,
-     turnovers: turnoverEffect,
-     assists: assistEffect,
-     steals: stealsEffect,
-     blocks: blocksEffect,
-     total: totalEffect
-   }
- }
-function runSimulations(teamA, teamB, numSimulations = 100): results = [] teamAWins = 0 teamBWins = 0 totalPointsA = 0 totalPointsB = 0
-
- // Effects tracking
- effectTotals = {
-   rebounding: 0,
-   fieldGoal: 0,
-   threePoint: 0,
-   turnovers: 0,
-   assists: 0,
-   steals: 0,
-   blocks: 0,
-   total: 0
- }
- 
- // Run the specified number of simulations
- for i = 0 to numSimulations-1:
-   gameResult = simulateGame(teamA, teamB)
-   results.push(gameResult)
-   
-   // Track wins
-   if gameResult.winner == teamA.name:
-     teamAWins++
-   else:
-     teamBWins++
-   
-   // Track points
-   totalPointsA += gameResult.teamAScore
-   totalPointsB += gameResult.teamBScore
-   
-   // Track effect contributions
-   for each effect in gameResult.effects:
-     effectTotals[effect] += gameResult.effects[effect]
- 
- // Calculate average scores
- avgScoreA = round(totalPointsA / numSimulations * 10) / 10
- avgScoreB = round(totalPointsB / numSimulations * 10) / 10
- 
- // Calculate win percentage
- teamAWinPct = (teamAWins / numSimulations) * 100
- teamBWinPct = (teamBWins / numSimulations) * 100
- 
- // Calculate average effects
- avgEffects = {}
- for each effect in effectTotals:
-   avgEffects[effect] = round(effectTotals[effect] / numSimulations * 10) / 10
- 
- return {
-   numSimulations,
-   teamAWins,
-   teamBWins,
-   teamAWinPct,
-   teamBWinPct,
-   avgScoreA,
-   avgScoreB,
-   avgEffects
- }
-
-3. Statistical impact calculations:
-- Rebounding advantage: Each extra rebound = 0.7 points
-- Field goal efficiency: Each percentage point difference = 0.25 points
-- Three-point efficiency: Each percentage point difference = 0.15 points
-- Turnover differential: Each fewer turnover = 1.0 point
-- Assist differential: Each extra assist = 0.5 points
-- Steals differential: Each extra steal = 1.0 point
-- Blocks differential: Each extra block = 0.8 points
-
-4. Game variance application:
-- Random game variance of ±12% is applied to each team's score
-- This simulates the natural variability in team performance from game to game
-
-5. Simulation aggregation:
-- Track wins for each team across all simulations
-- Calculate average scores for both teams
-- Identify statistical factors that most impacted the outcomes
-- Analyze margin distribution (close games vs. blowouts)
-- Calculate win probability based on simulation results
-
-6. Additional considerations:
-- Home court advantage if specified
-- Team playing styles and matchup dynamics
-- Key player matchups and their impact
-- Team strengths and weaknesses
-
-Return only the JSON object without any additional text or explanation.

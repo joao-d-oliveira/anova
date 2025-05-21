@@ -1,18 +1,14 @@
 import os
 import json
 import logging
-from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from app.routers import auth, report, upload
 from app.config import Config
 from app.database.init_db import init_db
-from app.middleware.auth_middleware import AuthMiddleware
-from app.middleware.path_middleware import PathMiddleware
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -142,8 +138,8 @@ async def report_view(request: Request, report_id: str):
     """
     View a specific report
     """
-    from database.connection import execute_query, get_or_create_user
-    from middleware.auth_middleware import get_current_user
+    from app.database.connection import execute_query, get_or_create_user
+    from app.middleware.auth_middleware import get_current_user
     
     # Get current user
     user = get_current_user(request)

@@ -115,7 +115,7 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
             <Grid.Col span={6}>
                 <Grid mb='md'>
                     <Grid.Col span={6}>
-                        <Card>
+                        <Card h="100%">
                             <Card.Section>
                                 Win Probability
                             </Card.Section>
@@ -123,7 +123,7 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
-                        <Card>
+                        <Card h="100%">
                             <Card.Section>
                                 Projected Score
                             </Card.Section>
@@ -131,6 +131,16 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
                         </Card>
                     </Grid.Col>
                 </Grid>
+                <Card>
+                <Card.Section>
+                        Critical Advantage
+                    </Card.Section>
+                    <List>
+                        {overallReport?.game_simulation.sim_success_factors.split('\n').map((line, index) => (
+                            <List.Item py='xs' key={index}>{line.replace('- ', '')}</List.Item>
+                        ))}
+                    </List>
+                </Card>
                 <Card>
                     <Card.Section>
                         Simulated Outcome
@@ -149,7 +159,6 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
                     teamStats={overallReport.team_stats}
                     opponentStats={overallReport.opponent_stats}
                 />
-
             </Grid.Col>
         </Grid>
     );

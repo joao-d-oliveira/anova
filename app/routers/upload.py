@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 
 from app.config import Config
+from app.models import GameSimulation, TeamWrapper
 from app.routers.util import get_verified_user_email
 from app.services.anthropic_api import analyze_team_pdf, simulate_game
 from app.services.report_gen import generate_report
@@ -164,7 +165,7 @@ def get_status(task_id: str):
     if task_id not in processing_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    print(processing_tasks[task_id])
+
     return ProcessingTask(**processing_tasks[task_id], task_id=task_id)
 
 @router.get("/download/{task_id}")
@@ -300,18 +301,18 @@ async def download_by_path(path: str):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> str:
+def generate_team_analysis_report(analysis: TeamWrapper, timestamp: str) -> str:
     """
     Generate a DOCX report for team analysis
     
     Args:
-        analysis: Dictionary containing team analysis
+        analysis: TeamWrapper containing team analysis
         timestamp: Timestamp string for the filename
         
     Returns:
         Path to the generated report
     """
-    team_name = analysis.get("team_name", "Team")
+    team_name = analysis.team_details.team_name
     
     # Create a new document
     doc = Document()
@@ -323,13 +324,12 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
     # Add team info section
     doc.add_heading("Team Information", 1)
     doc.add_paragraph(f"Team: {team_name}")
-    doc.add_paragraph(f"Record: {analysis.get('team_record', 'N/A')}")
-    if analysis.get('team_ranking'):
-        doc.add_paragraph(f"Ranking: {analysis.get('team_ranking')}")
+    doc.add_paragraph(f"Record: {analysis.team_details.record or 'N/A'}")
+    if analysis.team_details.team_ranking:
+        doc.add_paragraph(f"Ranking: {analysis.team_details.team_ranking}")
     
     # Add team stats section
     doc.add_heading("Team Statistics", 1)
-    team_stats = analysis.get("team_stats", {})
     stats_table = doc.add_table(rows=1, cols=2)
     stats_table.style = 'Table Grid'
     
@@ -339,71 +339,67 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
     header_cells[1].text = "Value"
     
     # Add stats rows
-    for stat, value in team_stats.items():
+    for stat, value in analysis.team_stats.model_dump().items():
         row_cells = stats_table.add_row().cells
         row_cells[0].text = stat
         row_cells[1].text = str(value)
     
     # Add team strengths section
     doc.add_heading("Team Strengths", 1)
-    for strength in analysis.get("team_strengths", []):
+    for strength in analysis.team_analysis.team_strengths:
         doc.add_paragraph(f"• {strength}", style='List Bullet')
     
     # Add team weaknesses section
     doc.add_heading("Team Weaknesses", 1)
-    for weakness in analysis.get("team_weaknesses", []):
+    for weakness in analysis.team_analysis.team_weaknesses:
         doc.add_paragraph(f"• {weakness}", style='List Bullet')
     
     # Add key players section
     doc.add_heading("Key Players", 1)
-    for player in analysis.get("key_players", []):
+    for player in analysis.team_analysis.key_players:
         doc.add_paragraph(f"• {player}", style='List Bullet')
     
     # Add playing style section
-    if analysis.get("playing_style"):
+    if analysis.team_analysis.playing_style:
         doc.add_heading("Playing Style", 1)
-        doc.add_paragraph(analysis.get("playing_style"))
+        doc.add_paragraph(analysis.team_analysis.playing_style)
     
     # Add offensive keys section
     doc.add_heading("Offensive Keys", 1)
-    for key in analysis.get("offensive_keys", []):
+    for key in analysis.team_analysis.offensive_keys:
         doc.add_paragraph(f"• {key}", style='List Bullet')
     
     # Add defensive keys section
     doc.add_heading("Defensive Keys", 1)
-    for key in analysis.get("defensive_keys", []):
+    for key in analysis.team_analysis.defensive_keys:
         doc.add_paragraph(f"• {key}", style='List Bullet')
     
     # Add game factors section
     doc.add_heading("Game Factors", 1)
-    for factor in analysis.get("game_factors", []):
+    for factor in analysis.team_analysis.game_factors:
         doc.add_paragraph(f"• {factor}", style='List Bullet')
     
     # Add rotation plan section
-    if analysis.get("rotation_plan"):
+    if analysis.team_analysis.rotation_plan:
         doc.add_heading("Rotation Plan", 1)
-        doc.add_paragraph(analysis.get("rotation_plan"))
+        doc.add_paragraph(analysis.team_analysis.rotation_plan)
     
     # Add situational adjustments section
     doc.add_heading("Situational Adjustments", 1)
-    for adjustment in analysis.get("situational_adjustments", []):
+    for adjustment in analysis.team_analysis.situational_adjustments:
         doc.add_paragraph(f"• {adjustment}", style='List Bullet')
     
     # Add game keys section
     doc.add_heading("Game Keys", 1)
-    for key in analysis.get("game_keys", []):
+    for key in analysis.team_analysis.game_keys:
         doc.add_paragraph(f"• {key}", style='List Bullet')
     
     # Add player details section
     doc.add_heading("Player Details", 1)
-    for player in analysis.get("players", [])[:5]:  # Top 5 players
-        player_name = player.get("name", "")
-        player_number = player.get("number", "")
-        
-        doc.add_heading(f"{player_name} #{player_number}", 2)
+    for player in analysis.team_details.players[:5]:  # Top 5 players
+        doc.add_heading(f"{player.name} #{player.number}", 2)
         
         # Add player stats
-        stats = player.get("stats", {})
         player_stats_table = doc.add_table(rows=1, cols=2)
         player_stats_table.style = 'Table Grid'
         
@@ -413,19 +409,19 @@ def generate_team_analysis_report(analysis: Dict[str, Any], timestamp: str) -> s
         header_cells[1].text = "Value"
         
         # Add stats rows
-        for stat, value in stats.items():
+        for stat, value in player.stats.model_dump().items():
             row_cells = player_stats_table.add_row().cells
             row_cells[0].text = stat
             row_cells[1].text = str(value)
         
         # Add player strengths
         doc.add_heading("Strengths", 3)
-        for strength in player.get("strengths", []):
+        for strength in player.strengths:
             doc.add_paragraph(f"• {strength}", style='List Bullet')
         
         # Add player weaknesses
         doc.add_heading("Weaknesses", 3)
-        for weakness in player.get("weaknesses", []):
+        for weakness in player.weaknesses:
             doc.add_paragraph(f"• {weakness}", style='List Bullet')
     
     # Save the document
@@ -457,22 +453,65 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         # Step 1: Analyze team PDF
         processing_tasks[task_id]["current_step"] = 0
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[0]
-        team_analysis = analyze_team_pdf(team_file_path, is_our_team=True)
+        
+
+        with open("/Users/edoardo/programming/anova/team1_wrapper.json", "r") as f:
+            team_wrapper = TeamWrapper.model_validate_json(f.read())
+        
+        # team_wrapper = analyze_team_pdf(team_file_path, is_our_team=True)
+        # with open("/tmp/team1_wrapper.json", "w") as f:
+        #     json.dump(team_wrapper.model_dump(mode="json"), f)
+
+        team_analysis = team_wrapper.team_analysis
         print("Generated team analysis")
         # print("-"*40 + "\n" + "DEBUG - Team Analysis:", team_analysis)
+
+        team_id = insert_team(team_wrapper.team_details, team_analysis)
+        team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
+
+        # Override team name if provided
+        if team_name:
+            team_wrapper.team_details.team_name = team_name
+
+        team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
+
+        # Insert players and their stats
+        print("DEBUG - Inserting players and their stats into database")
+        for player in team_wrapper.team_details.players:
+            player_id = insert_player(team_id, player)
+            print(f"DEBUG - Team Player ID: {player_id}, Name: {player.name}")
+            if player_id:
+                # Insert raw stats first
+                raw_stats_id = insert_player_raw_stats(player_id, player.stats)
+                print(f"DEBUG - Team Player Raw Stats ID: {raw_stats_id}")
+                # Then insert processed stats with reference to raw stats
+                player_stats_id = insert_player_stats(player_id, player.stats, player_raw_stats_id=raw_stats_id)
+                print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
+
+        team_analysis_id = insert_team_analysis(team_id, team_analysis)
+
+        # Step 4: Generate team analysis report
+        processing_tasks[task_id]["current_step"] = 3
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[3]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        team_analysis_path = generate_team_analysis_report(team_wrapper, timestamp)
+        
 
         # Step 2: Analyze opponent PDF
         processing_tasks[task_id]["current_step"] = 1
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[1]
-        opponent_analysis = analyze_team_pdf(opponent_file_path, is_our_team=False)
+
+        with open("/Users/edoardo/programming/anova/team2_wrapper.json", "r") as f:
+            opponent_wrapper = TeamWrapper.model_validate_json(f.read())
+        # opponent_wrapper = analyze_team_pdf(opponent_file_path, is_our_team=False)
+        
+        opponent_analysis = opponent_wrapper.team_analysis
         print("Generated opponent analysis")
         # print("-"*40 + "\n" + "DEBUG - Opponent Analysis:", opponent_analysis)
 
         # Override team names if provided
-        if team_name:
-            team_analysis["team_name"] = team_name
         if opponent_name:
-            opponent_analysis["team_name"] = opponent_name
+            opponent_wrapper.team_details.team_name = opponent_name
         
         # Step 3: Store data in database
         processing_tasks[task_id]["current_step"] = 2
@@ -480,173 +519,145 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         
         # Insert teams into database
         print("DEBUG - Inserting teams into database")
-        team_id = insert_team(team_analysis)
-        opponent_id = insert_team(opponent_analysis)
+        opponent_id = insert_team(opponent_wrapper.team_details, opponent_analysis)
         
         print(f"DEBUG - Team ID: {team_id}, Opponent ID: {opponent_id}")
         
-        if team_id and opponent_id:
-            # Insert team stats
-            print("DEBUG - Inserting team stats into database")
-            team_stats_id = insert_team_stats(team_id, team_analysis)
-            opponent_stats_id = insert_team_stats(opponent_id, opponent_analysis)
-            print(f"DEBUG - Team Stats ID: {team_stats_id}, Opponent Stats ID: {opponent_stats_id}")
-            
-            # Insert players and their stats
-            print("DEBUG - Inserting players and their stats into database")
-            for player in team_analysis.get("players", []):
-                player_id = insert_player(team_id, player)
-                print(f"DEBUG - Team Player ID: {player_id}, Name: {player.get('name')}")
-                if player_id:
-                    # Insert raw stats first
-                    raw_stats_id = insert_player_raw_stats(player_id, player)
-                    print(f"DEBUG - Team Player Raw Stats ID: {raw_stats_id}")
-                    # Then insert processed stats with reference to raw stats
-                    player_stats_id = insert_player_stats(player_id, player, player_raw_stats_id=raw_stats_id)
-                    print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
-            
-            for player in opponent_analysis.get("players", []):
-                player_id = insert_player(opponent_id, player)
-                print(f"DEBUG - Opponent Player ID: {player_id}, Name: {player.get('name')}")
-                if player_id:
-                    # Insert raw stats first
-                    raw_stats_id = insert_player_raw_stats(player_id, player)
-                    print(f"DEBUG - Opponent Player Raw Stats ID: {raw_stats_id}")
-                    # Then insert processed stats with reference to raw stats
-                    player_stats_id = insert_player_stats(player_id, player, player_raw_stats_id=raw_stats_id)
-                    print(f"DEBUG - Opponent Player Stats ID: {player_stats_id}")
-            
-            # Insert team analysis
-            print("DEBUG - Inserting team analysis into database")
-            team_analysis_id = insert_team_analysis(team_id, team_analysis)
-            opponent_analysis_id = insert_team_analysis(opponent_id, opponent_analysis)
-            print(f"DEBUG - Team Analysis ID: {team_analysis_id}, Opponent Analysis ID: {opponent_analysis_id}")
-            
-            # Insert game with user ID if available
-            print("DEBUG - Inserting game into database")
-            user_id = user['id']
-            
-            game_id, game_uuid = insert_game(team_id, opponent_id, user_id)
-            print(f"DEBUG - Game ID: {game_id}, Game UUID: {game_uuid}")
+        # Insert team stats
+        print("DEBUG - Inserting team stats into database")
+        opponent_stats_id = insert_team_stats(opponent_id, opponent_wrapper.team_stats)
+        print(f"DEBUG - Team Stats ID: {team_stats_id}, Opponent Stats ID: {opponent_stats_id}")
+        
+        for player in opponent_wrapper.team_details.players:
+            player_id = insert_player(team_id, player)
+            print(f"DEBUG - Team Player ID: {player_id}, Name: {player.name}")
+            if player_id:
+                # Insert raw stats first
+                raw_stats_id = insert_player_raw_stats(player_id, player.stats)
+                print(f"DEBUG - Team Player Raw Stats ID: {raw_stats_id}")
+                # Then insert processed stats with reference to raw stats
+                player_stats_id = insert_player_stats(player_id, player.stats, player_raw_stats_id=raw_stats_id)
+                print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
 
-            update_team_stats_game_id(team_stats_id, game_id)
-            update_team_stats_game_id(opponent_stats_id, game_id)
+        # Insert team analysis
+        print("DEBUG - Inserting team analysis into database")
+        opponent_analysis_id = insert_team_analysis(opponent_id, opponent_analysis)
+        print(f"DEBUG - Team Analysis ID: {team_analysis_id}, Opponent Analysis ID: {opponent_analysis_id}")
+        
+        # Insert game with user ID if available
+        print("DEBUG - Inserting game into database")
+        user_id = user['id']
+        
+        game_id, game_uuid = insert_game(team_id, opponent_id, user_id)
+        print(f"DEBUG - Game ID: {game_id}, Game UUID: {game_uuid}")
+
+        update_team_stats_game_id(team_stats_id, game_id)
+        update_team_stats_game_id(opponent_stats_id, game_id)
+        
+
+        # Step 5: Generate opponent analysis report
+        processing_tasks[task_id]["current_step"] = 4
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
+        opponent_analysis_path = generate_team_analysis_report(opponent_wrapper, timestamp)
+        
+        # print("-"*40 + "\n" + f"DEBUG - Team Analysis Report Path: {team_analysis_path}")
+        # print("-"*40 + "\n" + f"DEBUG - Opponent Analysis Report Path: {opponent_analysis_path}")
+        
+        # Insert reports
+        if game_id:
+            print("DEBUG - Inserting reports into database")
+            team_report_id, _ = insert_report(game_id, "team_analysis", team_analysis_path)
+            opponent_report_id, _ = insert_report(game_id, "opponent_analysis", opponent_analysis_path)
+            print(f"DEBUG - Team Report ID: {team_report_id}, Opponent Report ID: {opponent_report_id}")
+        
+        # Step 6: Simulate game
+        processing_tasks[task_id]["current_step"] = 5
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
+        with open("/Users/edoardo/programming/anova/simulation_results.json", "r") as f:
+            simulation_results = GameSimulation.model_validate_json(f.read())
+        # simulation_results = simulate_game(team_wrapper, opponent_wrapper, use_local=use_local_simulation)
+        # with open("/Users/edoardo/programming/anova/simulation_results.json", "w+") as f:
+        #     json.dump(simulation_results.model_dump(mode="json"), f)
+        
+        simulation_results_dict = simulation_results.model_dump(mode="json")
+        # print("-"*40 + "\n" + "DEBUG - Simulation Results:", simulation_results)
+        
+        # Insert game simulation
+        if game_id:
+            print("DEBUG - Inserting game simulation into database")
+            simulation_id = insert_game_simulation(game_id, simulation_results)
+            print(f"DEBUG - Simulation ID: {simulation_id}")
             
-            # Step 4: Generate team analysis report
-            processing_tasks[task_id]["current_step"] = 3
-            processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[3]
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            team_analysis_path = generate_team_analysis_report(team_analysis, timestamp)
+            # If using local simulation, insert simulation details
+            if use_local_simulation and "numSimulations" in simulation_results:
+                print("DEBUG - Inserting simulation details into database")
+                simulation_details_id = insert_simulation_details(
+                    simulation_id, 
+                    game_id, 
+                    team_id,  # home team
+                    opponent_id,  # away team
+                    simulation_results_dict
+                )
+                print(f"DEBUG - Simulation Details ID: {simulation_details_id}")
             
-            # Step 5: Generate opponent analysis report
-            processing_tasks[task_id]["current_step"] = 4
-            processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
-            opponent_analysis_path = generate_team_analysis_report(opponent_analysis, timestamp)
+            # Insert player projections
+            print("DEBUG - Inserting player projections into database")
             
-            # print("-"*40 + "\n" + f"DEBUG - Team Analysis Report Path: {team_analysis_path}")
-            # print("-"*40 + "\n" + f"DEBUG - Opponent Analysis Report Path: {opponent_analysis_path}")
-            
-            # Insert reports
-            if game_id:
-                print("DEBUG - Inserting reports into database")
-                team_report_id, _ = insert_report(game_id, "team_analysis", team_analysis_path)
-                opponent_report_id, _ = insert_report(game_id, "opponent_analysis", opponent_analysis_path)
-                print(f"DEBUG - Team Report ID: {team_report_id}, Opponent Report ID: {opponent_report_id}")
-            
-            # Step 6: Simulate game
-            processing_tasks[task_id]["current_step"] = 5
-            processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
-            simulation_results = simulate_game(team_analysis, opponent_analysis, use_local=use_local_simulation)
-            # print("-"*40 + "\n" + "DEBUG - Simulation Results:", simulation_results)
-            
-            # Check if simulation_results contains the required fields
-            required_fields = ["win_probability", "projected_score", "sim_overall_summary", 
-                              "sim_success_factors", "sim_key_matchups", "sim_win_loss_patterns"]
-            
-            missing_fields = [field for field in required_fields if field not in simulation_results]
-            if missing_fields:
-                print(f"WARNING - Missing required fields in simulation_results: {missing_fields}")
-                # Add default values for missing fields
-                for field in missing_fields:
-                    simulation_results[field] = f"No data available for {field}"
-                print("DEBUG - Added default values for missing fields")
-            
-            # Insert game simulation
-            if game_id:
-                print("DEBUG - Inserting game simulation into database")
-                simulation_id = insert_game_simulation(game_id, simulation_results)
-                print(f"DEBUG - Simulation ID: {simulation_id}")
-                
-                # If using local simulation, insert simulation details
-                if use_local_simulation and "numSimulations" in simulation_results:
-                    print("DEBUG - Inserting simulation details into database")
-                    simulation_details_id = insert_simulation_details(
-                        simulation_id, 
-                        game_id, 
-                        team_id,  # home team
-                        opponent_id,  # away team
-                        simulation_results
-                    )
-                    print(f"DEBUG - Simulation Details ID: {simulation_details_id}")
-                
-                # Insert player projections
-                print("DEBUG - Inserting player projections into database")
-                
-                # Process team player projections
-                for i in range(1, 6):  # Assuming up to 5 players
-                    player_key = f"team_p{i}_name"
-                    if player_key in simulation_results:
-                        # Find player ID by name
-                        player_name = simulation_results[f"team_p{i}_name"]
-                        player_id = find_player_by_name(player_name, team_id)
+            # Process team player projections
+            for i in range(1, 7):  # Assuming up to 6 players
+                player_key = f"team_p{i}_name"
+                if player_key in simulation_results_dict:
+                    # Find player ID by name
+                    player_name = simulation_results_dict[f"team_p{i}_name"]
+                    player_id = find_player_by_name(player_name, team_id)
+                    
+                    if player_id:
+                        projection_data = {
+                            "ppg": simulation_results_dict.get(f"team_p{i}_ppg", 0),
+                            "rpg": simulation_results_dict.get(f"team_p{i}_rpg", 0),
+                            "apg": simulation_results_dict.get(f"team_p{i}_apg", 0),
+                            "fg": simulation_results_dict.get(f"team_p{i}_fg", "0%"),
+                            "3p": simulation_results_dict.get(f"team_p{i}_3p", "0%"),
+                            "role": simulation_results_dict.get(f"team_p{i}_role", "")
+                        }
                         
-                        if player_id:
-                            projection_data = {
-                                "ppg": simulation_results.get(f"team_p{i}_ppg", 0),
-                                "rpg": simulation_results.get(f"team_p{i}_rpg", 0),
-                                "apg": simulation_results.get(f"team_p{i}_apg", 0),
-                                "fg": simulation_results.get(f"team_p{i}_fg", "0%"),
-                                "3p": simulation_results.get(f"team_p{i}_3p", "0%"),
-                                "role": simulation_results.get(f"team_p{i}_role", "")
-                            }
-                            
-                            projection_id = insert_player_projections(
-                                simulation_id,
-                                player_id,
-                                team_id,
-                                game_id,
-                                projection_data,
-                                True  # is_home_team
-                            )
-                            print(f"DEBUG - Team Player Projection ID: {projection_id}, Player: {player_name}")
-                
-                # Process opponent player projections
-                for i in range(1, 6):  # Assuming up to 5 players
-                    player_key = f"opp_p{i}_name"
-                    if player_key in simulation_results:
-                        # Find player ID by name
-                        player_name = simulation_results[f"opp_p{i}_name"]
-                        player_id = find_player_by_name(player_name, opponent_id)
+                        projection_id = insert_player_projections(
+                            simulation_id,
+                            player_id,
+                            team_id,
+                            game_id,
+                            projection_data,
+                            True  # is_home_team
+                        )
+                        print(f"DEBUG - Team Player Projection ID: {projection_id}, Player: {player_name}")
+            
+            # Process opponent player projections
+            for i in range(1, 7):  # Assuming up to 6 players
+                player_key = f"opp_p{i}_name"
+                if player_key in simulation_results_dict:
+                    # Find player ID by name
+                    player_name = simulation_results_dict[f"opp_p{i}_name"]
+                    player_id = find_player_by_name(player_name, opponent_id)
+                    
+                    if player_id:
+                        projection_data = {
+                            "ppg": simulation_results_dict.get(f"opp_p{i}_ppg", 0),
+                            "rpg": simulation_results_dict.get(f"opp_p{i}_rpg", 0),
+                            "apg": simulation_results_dict.get(f"opp_p{i}_apg", 0),
+                            "fg": simulation_results_dict.get(f"opp_p{i}_fg", "0%"),
+                            "3p": simulation_results_dict.get(f"opp_p{i}_3p", "0%"),
+                            "role": simulation_results_dict.get(f"opp_p{i}_role", "")
+                        }
                         
-                        if player_id:
-                            projection_data = {
-                                "ppg": simulation_results.get(f"opp_p{i}_ppg", 0),
-                                "rpg": simulation_results.get(f"opp_p{i}_rpg", 0),
-                                "apg": simulation_results.get(f"opp_p{i}_apg", 0),
-                                "fg": simulation_results.get(f"opp_p{i}_fg", "0%"),
-                                "3p": simulation_results.get(f"opp_p{i}_3p", "0%"),
-                                "role": simulation_results.get(f"opp_p{i}_role", "")
-                            }
-                            
-                            projection_id = insert_player_projections(
-                                simulation_id,
-                                player_id,
-                                opponent_id,
-                                game_id,
-                                projection_data,
-                                False  # is_home_team
-                            )
-                            print(f"DEBUG - Opponent Player Projection ID: {projection_id}, Player: {player_name}")
+                        projection_id = insert_player_projections(
+                            simulation_id,
+                            player_id,
+                            opponent_id,
+                            game_id,
+                            projection_data,
+                            False  # is_home_team
+                        )
+                        print(f"DEBUG - Opponent Player Projection ID: {projection_id}, Player: {player_name}")
         
         # Step 7: Generate final report
         processing_tasks[task_id]["current_step"] = 6
@@ -654,15 +665,15 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         
         # Prepare analysis results in the format expected by report_gen
         analysis_results = {
-            "team_name": team_analysis.get("team_name", "Team"),
-            "opponent_name": opponent_analysis.get("team_name", "Opponent"),
-            "team_record": team_analysis.get("team_record", ""),
-            "opponent_record": opponent_analysis.get("team_record", ""),
-            "matchup_overview": f"Game between {team_analysis.get('team_name', 'Team')} and {opponent_analysis.get('team_name', 'Opponent')}.",
-            "team_strengths_summary": "\n".join([f"- {strength}" for strength in team_analysis.get("team_strengths", [])]),
-            "team_weaknesses_summary": "\n".join([f"- {weakness}" for weakness in team_analysis.get("team_weaknesses", [])]),
-            "opponent_strengths_summary": "\n".join([f"- {strength}" for strength in opponent_analysis.get("team_strengths", [])]),
-            "opponent_weaknesses_summary": "\n".join([f"- {weakness}" for weakness in opponent_analysis.get("team_weaknesses", [])])
+            "team_name": team_wrapper.team_details.team_name,
+            "opponent_name": opponent_wrapper.team_details.team_name,
+            "team_record": team_wrapper.team_details.record,
+            "opponent_record": opponent_wrapper.team_details.record,
+            "matchup_overview": f"Game between {team_wrapper.team_details.team_name} and {opponent_wrapper.team_details.team_name}.",
+            "team_strengths_summary": "\n".join([f"- {strength}" for strength in team_analysis.team_strengths]),
+            "team_weaknesses_summary": "\n".join([f"- {weakness}" for weakness in team_analysis.team_weaknesses]),
+            "opponent_strengths_summary": "\n".join([f"- {strength}" for strength in opponent_analysis.team_strengths]),
+            "opponent_weaknesses_summary": "\n".join([f"- {weakness}" for weakness in opponent_analysis.team_weaknesses])
         }
         
         # Add game factors, offensive keys, defensive keys
@@ -685,24 +696,24 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
             analysis_results["game_keys"] = "\n".join([f"- {key}" for key in team_analysis.get("game_keys", [])])
         
         # Add player information
-        team_players = team_analysis.get("players", [])
-        opponent_players = opponent_analysis.get("players", [])
+        team_players = team_wrapper.team_details.players
+        opponent_players = opponent_wrapper.team_details.players
         
         # Add team players
-        for i, player in enumerate(team_players[:5], 1):
-            analysis_results[f"player_{i}_name"] = f"{player.get('name', '')} #{player.get('number', '')}"
-            analysis_results[f"player_{i}_stats"] = f"{player.get('stats', {}).get('PPG', 0)} PPG, {player.get('stats', {}).get('FG%', '0%')} FG, {player.get('stats', {}).get('3FG%', '0%')} 3PT"
-            analysis_results[f"player_{i}_strengths"] = "\n".join([f"- {strength}" for strength in player.get("strengths", [])])
-            analysis_results[f"player_{i}_weaknesses"] = "\n".join([f"- {weakness}" for weakness in player.get("weaknesses", [])])
+        for i, player in enumerate(team_players[:6], 1):
+            analysis_results[f"player_{i}_name"] = f"{player.name} #{player.number}"
+            analysis_results[f"player_{i}_stats"] = f"{player.stats.PPG} PPG, {player.stats.FG_percent} FG, {player.stats.FG3_percent} 3PT"
+            analysis_results[f"player_{i}_strengths"] = "\n".join([f"- {strength}" for strength in player.strengths])
+            analysis_results[f"player_{i}_weaknesses"] = "\n".join([f"- {weakness}" for weakness in player.weaknesses])
         
         # Add opponent players
-        for i, player in enumerate(opponent_players[:5], 1):
-            analysis_results[f"opponent_player_{i}_name"] = f"{player.get('name', '')} #{player.get('number', '')}"
-            analysis_results[f"opponent_player_{i}_stats"] = f"{player.get('stats', {}).get('PPG', 0)} PPG, {player.get('stats', {}).get('FG%', '0%')} FG, {player.get('stats', {}).get('3FG%', '0%')} 3PT"
-            analysis_results[f"opponent_player_{i}_shooting"] = f"{player.get('stats', {}).get('FG%', '0%')} FG, {player.get('stats', {}).get('3FG%', '0%')} 3PT, {player.get('stats', {}).get('FT%', '0%')} FT"
-            analysis_results[f"opponent_player_{i}_strengths"] = "\n".join([f"- {strength}" for strength in player.get("strengths", [])])
-            analysis_results[f"opponent_player_{i}_weaknesses"] = "\n".join([f"- {weakness}" for weakness in player.get("weaknesses", [])])
-            analysis_results[f"opponent_player_{i}_insight"] = f"Key player for {opponent_analysis.get('team_name', 'Opponent')}"
+        for i, player in enumerate(opponent_players[:6], 1):
+            analysis_results[f"opponent_player_{i}_name"] = f"{player.name} #{player.number}"
+            analysis_results[f"opponent_player_{i}_stats"] = f"{player.stats.PPG} PPG, {player.stats.FG_percent} FG, {player.stats.FG3_percent} 3PT"
+            analysis_results[f"opponent_player_{i}_shooting"] = f"{player.stats.FG_percent} FG, {player.stats.FG3_percent} 3PT, {player.stats.FT_percent} FT"
+            analysis_results[f"opponent_player_{i}_strengths"] = "\n".join([f"- {strength}" for strength in player.strengths])
+            analysis_results[f"opponent_player_{i}_weaknesses"] = "\n".join([f"- {weakness}" for weakness in player.weaknesses])
+            analysis_results[f"opponent_player_{i}_insight"] = f"Key player for {opponent_wrapper.team_details.team_name}"
         
         # Add stat comparison
         stat_labels = [
@@ -712,50 +723,55 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
             "Assists", "Assist-to-Turnover Ratio"
         ]
         
-        team_stats = team_analysis.get("team_stats", {})
-        opponent_stats = opponent_analysis.get("team_stats", {})
+        team_stats = team_wrapper.team_stats
+        opponent_stats = opponent_wrapper.team_stats
         
         for i, label in enumerate(stat_labels, 1):
             analysis_results[f"stat_label_{i}"] = label
             
             if label == "Points Per Game":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("PPG", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("PPG", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.PPG)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.PPG)
             elif label == "FG %":
-                analysis_results[f"team_stat_{i}"] = team_stats.get("FG%", "0%")
-                analysis_results[f"opponent_stat_{i}"] = opponent_stats.get("FG%", "0%")
+                analysis_results[f"team_stat_{i}"] = team_stats.FG_percent
+                analysis_results[f"opponent_stat_{i}"] = opponent_stats.FG_percent
             elif label == "3PT %":
-                analysis_results[f"team_stat_{i}"] = team_stats.get("3FG%", "0%")
-                analysis_results[f"opponent_stat_{i}"] = opponent_stats.get("3FG%", "0%")
+                analysis_results[f"team_stat_{i}"] = team_stats.FG3_percent
+                analysis_results[f"opponent_stat_{i}"] = opponent_stats.FG3_percent
             elif label == "FT %":
-                analysis_results[f"team_stat_{i}"] = team_stats.get("FT%", "0%")
-                analysis_results[f"opponent_stat_{i}"] = opponent_stats.get("FT%", "0%")
+                analysis_results[f"team_stat_{i}"] = team_stats.FT_percent
+                analysis_results[f"opponent_stat_{i}"] = opponent_stats.FT_percent
             elif label == "Steals":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("STL", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("STL", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.STL)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.STL)
             elif label == "Blocks":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("BLK", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("BLK", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.BLK)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.BLK)
             elif label == "Rebounds":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("REB", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("REB", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.REB)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.REB)
             elif label == "Defensive Rebounds":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("DREB", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("DREB", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.DREB)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.DREB)
             elif label == "Offensive Rebounds":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("OREB", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("OREB", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.OREB)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.OREB)
             elif label == "Assists":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("AST", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("AST", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.AST)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.AST)
             elif label == "Assist-to-Turnover Ratio":
-                analysis_results[f"team_stat_{i}"] = str(team_stats.get("A/TO", 0))
-                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.get("A/TO", 0))
+                analysis_results[f"team_stat_{i}"] = str(team_stats.A_TO)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.A_TO)
+            elif label == "Turnovers":
+                analysis_results[f"team_stat_{i}"] = str(team_stats.TO)
+                analysis_results[f"opponent_stat_{i}"] = str(opponent_stats.TO)
+            elif label == "2PT FG %":
+                analysis_results[f"team_stat_{i}"] = team_stats.FG2_percent
+                analysis_results[f"opponent_stat_{i}"] = opponent_stats.FG2_percent
         
         # Generate combined report
-        game_report_path = generate_report(analysis_results, simulation_results)
+        game_report_path = generate_report(analysis_results, simulation_results_dict)
         print("Generated final report")
-        # print("-"*40 + "\n" + "DEBUG - Combined Report Path:", report_path)
         
         # Insert combined report
         if game_id:
@@ -785,3 +801,10 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         processing_tasks[task_id]["error"] = str(e)
         print("-" * 40)
         print(f"ERROR: {str(e)}")
+
+if __name__ == "__main__":
+    processing_tasks = {'0d05182f-2088-418f-bd4e-fed202f8a271': {'status': 'processing'}}
+    process_files("0d05182f-2088-418f-bd4e-fed202f8a271", [
+        '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/opponent_ARLINGTON Last 5 games INDIVIDUAL stats.pdf',
+        '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/team_SCARSDALE Last 5 games individual stats.pdf'
+    ], {"id": 1}, "Team 1", "Team 2", True)

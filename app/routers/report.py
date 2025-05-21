@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.config import Config
-from app.database.connection import GameSimulation, ProjectedPlayer, ReportSummary, Team, TeamStats, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
+from app.database.connection import GameSimulationResponse, ProjectedPlayer, ReportSummary, TeamResponse, TeamStatsResponse, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
 from app.routers.util import get_verified_user_email
 
 
@@ -93,13 +93,13 @@ class OverallReport(BaseModel):
     created_at: datetime.datetime
     
     game_uuid: str    
-    game_simulation: GameSimulation
+    game_simulation: GameSimulationResponse
     
-    team: Team
-    team_stats: TeamStats
+    team: TeamResponse
+    team_stats: TeamStatsResponse
     team_player_analysis: List[ProjectedPlayer]
-    opponent: Team
-    opponent_stats: TeamStats
+    opponent: TeamResponse
+    opponent_stats: TeamStatsResponse
     opponent_player_analysis: List[ProjectedPlayer]
 
 

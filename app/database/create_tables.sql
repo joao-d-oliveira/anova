@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS teams (
     name VARCHAR(100) NOT NULL,
     record VARCHAR(20),
     ranking VARCHAR(50),
-    playing_style TEXT,
     record_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -34,6 +33,8 @@ CREATE TABLE IF NOT EXISTS players (
     height VARCHAR(10),
     weight VARCHAR(10),
     year VARCHAR(20),
+    strengths TEXT[],
+    weaknesses TEXT[],
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -151,6 +152,8 @@ CREATE TABLE IF NOT EXISTS team_analysis (
     rotation_plan TEXT,
     situational_adjustments TEXT[],
     game_keys TEXT[],
+    playing_style TEXT,
+    team_data JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -165,6 +168,15 @@ CREATE TABLE IF NOT EXISTS game_simulations (
     sim_success_factors TEXT,
     sim_key_matchups TEXT,
     sim_win_loss_patterns TEXT,
+    sim_critical_advantage TEXT,
+    sim_keys_to_victory TEXT[],
+    sim_situational_adjustments JSONB,
+    playbook_offensive_plays JSONB,
+    playbook_defensive_plays JSONB,
+    playbook_special_situations JSONB,
+    playbook_inbound_plays JSONB,
+    playbook_after_timeout_special_plays JSONB,
+    simulation_data JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
