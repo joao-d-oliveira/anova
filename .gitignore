@@ -13,3 +13,4 @@ terraform/terraform.tfvars
 /app/frontend/dist/
 **/__pycache__/
 .DS_Store
+/app/tests/app/data/analysis_json/
