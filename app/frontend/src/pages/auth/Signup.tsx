@@ -3,6 +3,7 @@ import { Card, Container, Stack, Title, TextInput, PasswordInput, Checkbox, Butt
 import { useForm } from '@mantine/form';
 import { useRegister } from "../../mutations";
 import { successNotification } from "../../common/notifications";
+import { filledButtonProps, outlineButtonProps } from "../../props/Button";
 
 function RegisterForm({ cbRegistered }: { cbRegistered: (email: string) => void }) {
     const { register } = useRegister();
@@ -56,7 +57,7 @@ function RegisterForm({ cbRegistered }: { cbRegistered: (email: string) => void 
                 </Center>
                 <Card>
                     <Card.Section p="md">
-                        <Title order={2}>Create your Anova Account</Title>
+                        Create your Anova Account
                     </Card.Section>
                     <Stack p="md" gap="md">
                         <TextInput
@@ -123,11 +124,11 @@ function RegisterForm({ cbRegistered }: { cbRegistered: (email: string) => void 
                         </Group>
                     </Stack>
                 </Card>
-                <Button type="submit" fullWidth size="md" variant="filled">
+                <Button type="submit" fullWidth size="md" variant="filled" {...filledButtonProps}>
                     Register
                 </Button>
 
-                <Button fullWidth size="md" variant="outline" component="a" href="/auth/login">
+                <Button fullWidth size="md" variant="outline" component="a" {...outlineButtonProps} href="/auth/login">
                     Already have an account? Log in
                 </Button>
             </Stack>
@@ -168,7 +169,7 @@ function ConfirmAccount({ email }: { email: string }) {
                 </Center>
                 <Card>
                     <Card.Section p="md">
-                        <Title order={2}>Confirm your email</Title>
+                        Confirm your email
                     </Card.Section>
                     <Stack p="md" gap="md">
                         <Text>Please enter the code sent to your email to confirm your account.</Text>
@@ -180,7 +181,7 @@ function ConfirmAccount({ email }: { email: string }) {
                         />
                     </Stack>
                 </Card>
-                <Button type="submit" fullWidth size="md" variant="filled">
+                <Button type="submit" fullWidth size="md" variant="filled" {...filledButtonProps}>
                     Confirm
                 </Button>
             </Stack>

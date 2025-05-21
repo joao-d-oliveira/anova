@@ -1,4 +1,4 @@
-import { Card, Grid, Group, List, Table, Text, Title } from "@mantine/core";
+import { Card, Grid, Group, List, Stack, Table, Text, Title } from "@mantine/core";
 import { OverallReport, TeamStats } from "../../../generated/client";
 
 interface StatisticRowProps {
@@ -28,7 +28,7 @@ interface StatisticTableProps {
 
 function StatisticTable({ title, statistics }: StatisticTableProps) {
     return (
-        <Table mb="md">
+        <Table mb="md" withRowBorders={false} verticalSpacing={"2"}>
             <Table.Thead>
                 <Table.Tr bg="gray.1">
                     <Table.Th colSpan={3}>
@@ -51,11 +51,13 @@ function StatisticTable({ title, statistics }: StatisticTableProps) {
 }
 
 interface ComparisonCardProps {
+    teamName: string;
+    opponentName: string;
     teamStats: TeamStats;
     opponentStats: TeamStats;
 }
 
-function ComparisonCard({ teamStats, opponentStats }: ComparisonCardProps) {
+function ComparisonCard({ teamName, opponentName, teamStats, opponentStats }: ComparisonCardProps) {
     const offenseStats = [
         { name: "Points Per Game", teamValue: teamStats.ppg, opponentValue: opponentStats.ppg },
         { name: "Field Goal %", teamValue: teamStats.fg_pct, opponentValue: opponentStats.fg_pct },
@@ -82,13 +84,27 @@ function ComparisonCard({ teamStats, opponentStats }: ComparisonCardProps) {
 
     return (
         <Card>
-            <Card.Section p='md'>
-                <Title order={3}>Team Comparison</Title>
+            <Card.Section>
+                Team Comparison
             </Card.Section>
-            <StatisticTable title="Offense" statistics={offenseStats} />
-            <StatisticTable title="Defense" statistics={defenseStats} />
-            <StatisticTable title="Rebounding" statistics={reboundingStats} />
-            <StatisticTable title="Playmaking" statistics={playmakingStats} />
+            <Stack mt='md'>
+                <Table mb="0" withRowBorders={false} verticalSpacing={"0"}>
+                    <Table.Tbody>
+                        <Table.Tr>
+                            <Table.Td>
+                                <Text ta="left" fz="xl" fw={500}>{teamName}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                                <Text ta="right" fz="xl" fw={500}>{opponentName}</Text>
+                            </Table.Td>
+                        </Table.Tr>
+                    </Table.Tbody>
+                </Table>
+                <StatisticTable title="Offense" statistics={offenseStats} />
+                <StatisticTable title="Defense" statistics={defenseStats} />
+                <StatisticTable title="Rebounding" statistics={reboundingStats} />
+                <StatisticTable title="Playmaking" statistics={playmakingStats} />
+            </Stack>
         </Card>
     );
 }
@@ -100,24 +116,24 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
                 <Grid mb='md'>
                     <Grid.Col span={6}>
                         <Card>
-                            <Card.Section p='md'>
-                                <Title order={3}>Win Probability</Title>
+                            <Card.Section>
+                                Win Probability
                             </Card.Section>
                             <Text>{overallReport?.game_simulation.win_probability}</Text>
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
                         <Card>
-                            <Card.Section p='md'>
-                                <Title order={3}>Projected Score</Title>
+                            <Card.Section>
+                                Projected Score
                             </Card.Section>
                             <Text>{overallReport?.game_simulation.projected_score}</Text>
                         </Card>
                     </Grid.Col>
                 </Grid>
                 <Card>
-                    <Card.Section p='md'>
-                        <Title order={3}>Simulated Outcome</Title>
+                    <Card.Section>
+                        Simulated Outcome
                     </Card.Section>
                     <List>
                         {overallReport?.game_simulation.sim_success_factors.split('\n').map((line, index) => (
@@ -128,6 +144,8 @@ export default function Overview({ overallReport }: { overallReport: OverallRepo
             </Grid.Col>
             <Grid.Col span={6}>
                 <ComparisonCard
+                    teamName={overallReport.team.name}
+                    opponentName={overallReport.opponent.name}
                     teamStats={overallReport.team_stats}
                     opponentStats={overallReport.opponent_stats}
                 />

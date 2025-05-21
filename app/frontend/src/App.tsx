@@ -20,6 +20,7 @@ import React, { Component } from "react";
 import { RouteRecord } from "vite-react-ssg";
 // import LocalesImportPlugin from './components/LocalesLazyImport';
 const Layout = React.lazy(() => import("./layouts/Layout"));
+const AuthLayout = React.lazy(() => import("./layouts/AuthLayout"));
 const DashboardLayout = React.lazy(() => import("./layouts/DashboardLayout"));
 
 const Error404 = React.lazy(() => import("./pages/Error404"));
@@ -37,7 +38,7 @@ const staticPaths: RouteRecord[] = [
     children: [
       {
         path: "auth",
-        Component: DashboardLayout,
+        Component: AuthLayout,
         children: [
           {
             path: "signup", Component: Signup,

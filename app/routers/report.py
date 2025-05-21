@@ -1,10 +1,12 @@
 import datetime
 from typing import List
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.config import Config
-from app.database.connection import GameSimulation, ProjectedPlayer, Team, TeamStats, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_team_by_id, get_team_stats_from_game
+from app.database.connection import GameSimulation, ProjectedPlayer, ReportSummary, Team, TeamStats, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
+from app.routers.util import get_verified_user_email
 
 
 config = Config()
@@ -87,7 +89,6 @@ router = APIRouter(
 #     situational_adjustments: List[str]
 #     game_keys: List[str]
 
-
 class OverallReport(BaseModel):
     created_at: datetime.datetime
     
@@ -102,22 +103,38 @@ class OverallReport(BaseModel):
     opponent_player_analysis: List[ProjectedPlayer]
 
 
+
+@router.get("/summaries", response_model=List[ReportSummary])
+async def get_report_summaries(user_email: str = Depends(get_verified_user_email)):
+    # Get user ID from email
+    user = get_user_by_email(user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get report summaries
+    summaries = get_report_summaries_by_user_id(user["id"])
+    
+    return summaries
+
 @router.get("/{game_uuid}", response_model=OverallReport)
-async def get_full_game_report(game_uuid: str):
+async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email)):
     # get game
+    user = get_user_by_email(user_email)
     game = get_game_by_uuid(game_uuid)
+    if not game or game.user_id != user["id"]:
+        raise HTTPException(status_code=404, detail="Game not found")
     
     # get game report
     game_report = get_game_simulation(game.id)
 
     # get team analysis
     team = get_team_by_id(game.home_team_id)
-    team_analysis = get_team_stats_from_game(game.id)
+    team_analysis = get_team_stats_from_game(game.id, team.id)
     team_player_analysis = get_projected_player_for_game(game.id, team.id)
     
     # get opponent analysis
     opponent = get_team_by_id(game.away_team_id)
-    opponent_analysis = get_team_stats_from_game(game.id)
+    opponent_analysis = get_team_stats_from_game(game.id, opponent.id)
     opponent_player_analysis = get_projected_player_for_game(game.id, opponent.id)
 
     return OverallReport(
@@ -133,3 +150,13 @@ async def get_full_game_report(game_uuid: str):
         opponent_stats=opponent_analysis,
         opponent_player_analysis=opponent_player_analysis
     )
+
+@router.get("/{game_uuid}/download")
+async def download_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email)):
+    game = get_game_by_uuid(game_uuid)
+    if not game or game.user_id != user_email:
+        raise HTTPException(status_code=404, detail="Game not found")
+    
+    game_report = get_report_by_game_id(game.id, "game_analysis")
+
+    return FileResponse(game_report["file_path"], media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")

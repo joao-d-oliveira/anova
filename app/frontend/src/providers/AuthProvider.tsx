@@ -9,24 +9,21 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const navigate = useNavigate();
-  const { data: user, isLoading, isError } = useUser();
+  const { user } = useUser();
 
   useEffect(() => {
-    console.log("isLoading", isLoading);
-    console.log("isError", isError);
     console.log("user", user);
-    if (!isLoading && isError) {
-      window.location.href = '/auth/login';
+    if (user.isError) {
+      window.location.href = `/auth/login?message=${encodeURI("You must be logged in to access this page")}&messageType=${encodeURIComponent("error")}`;
     }
-  }, [isLoading, isError, navigate]);
+  }, [user.isError]);
 
-  if (isLoading) {
+  if (user.isPending) {
     return <Stack><Center><Loader type="dots" /></Center></Stack>;
   }
 
-  if (!user) {
-    return null;
+  if (user.isPending) {
+    return <Loader type="dots" />;
   }
 
   return <>{children}</>;

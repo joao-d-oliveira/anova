@@ -2,6 +2,7 @@ import React from "react";
 import { Card, Container, Stack, Title, TextInput, Button, Image, Center } from "@mantine/core";
 import { useForm } from '@mantine/form';
 import { useLogin } from "../../mutations";
+import { filledButtonProps, outlineButtonProps } from "../../props/Button";
 
 export default function Login() {
     const { login } = useLogin();
@@ -31,7 +32,7 @@ export default function Login() {
                     </Center>
                     <Card>
                         <Card.Section p="md">
-                            <Title order={2}>Log in to your Anova Account</Title>
+                            Log in to your Anova Account
                         </Card.Section>
                         <Stack p="md" gap="md">
                             <TextInput
@@ -51,15 +52,15 @@ export default function Login() {
                             />
                         </Stack>
                     </Card>
-                    <Button type="submit" fullWidth size="md" variant="filled">
+                    <Button type="submit" fullWidth size="md" variant="filled" {...filledButtonProps}>
                         Log in
                     </Button>
 
-                    <Button fullWidth size="md" variant="outline" component="a" href="/auth/forgot-password">
+                    <Button fullWidth size="md" variant="outline" component="a" {...outlineButtonProps} href="/auth/forgot-password">
                         Forgot your password?
                     </Button>
 
-                    <Button fullWidth size="md" variant="outline" component="a" href="/auth/signup">
+                    <Button fullWidth size="md" variant="outline" component="a" {...outlineButtonProps} href="/auth/signup">
                         Don't have an account? Register here
                     </Button>
                 </Stack>

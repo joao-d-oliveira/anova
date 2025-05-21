@@ -3,11 +3,12 @@ import Header from "../../components/dashboard/Header";
 import { useReport } from "../../mutations";
 import Overview from "../../components/dashboard/game/Overview";
 import TeamAnalysis from "../../components/dashboard/game/TeamAnalysis";
+import { filledButtonProps } from "../../props/Button";
 
 export default function GameReport() {
     const { searchParams } = new URL(window.location.href);
     const game_uuid = searchParams.get('game_uuid');
-    const { overallReport } = useReport({ game_uuid: game_uuid as string });
+    const { overallReport, downloadReport } = useReport({ game_uuid: game_uuid as string });
 
 
     if (overallReport.isLoading) {
@@ -28,15 +29,15 @@ export default function GameReport() {
         <Header />
         <Group justify='space-between'>
             <Stack>
-                <Title order={1}>Team 1 vs Team 2 Game Report</Title>
+                <Title order={1}>{overallReport.data.team.name} vs {overallReport.data.opponent.name} Game Report</Title>
                 <Text>Created: {new Date(overallReport.data?.created_at).toLocaleString()}</Text>
             </Stack>
             <Group>
-                <Button>Download</Button>
+                <Button onClick={() => downloadReport.mutate()} {...filledButtonProps}>Download</Button>
             </Group>
         </Group>
         <Space h='xl' />
-        <Tabs defaultValue="overview">
+        <Tabs color="brand" defaultValue="overview">
             <Tabs.List>
                 <Tabs.Tab value="overview">
                     Overview

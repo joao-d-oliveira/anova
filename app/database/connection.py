@@ -499,6 +499,14 @@ def get_report(report_id: int):
     result = execute_query(query, (report_id,))
     return result[0]
 
+def get_report_by_game_id(game_id: int, report_type: str):
+    query = """
+    SELECT id, uuid, game_id, report_type, file_path FROM reports
+    WHERE game_id = %s AND report_type = %s
+    """
+    result = execute_query(query, (game_id, report_type))
+    return result[0]
+
 def insert_player_raw_stats(player_id, stats_data, game_id=None):
     """
     Insert raw player statistics into the database
@@ -997,7 +1005,7 @@ class TeamStats(BaseModel):
     assist_to_turnover: Optional[float]
     is_season_average: Optional[bool]
 
-def get_team_stats_from_game(game_id: int) -> Optional[TeamStats]:
+def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStats]:
     """
     Get team statistics for a specific game
     
@@ -1008,9 +1016,9 @@ def get_team_stats_from_game(game_id: int) -> Optional[TeamStats]:
         List of TeamStats objects
     """
     query = """
-    SELECT * FROM team_stats WHERE game_id = %s LIMIT 1
+    SELECT * FROM team_stats WHERE game_id = %s AND team_id = %s LIMIT 1
     """
-    results = execute_query(query, (game_id,))
+    results = execute_query(query, (game_id, team_id))
     if results:
         return TeamStats(**results[0])
     return None
@@ -1080,6 +1088,8 @@ class ProjectedPlayer(BaseModel):
     player_id: int
     team_id: int
     game_id: int
+    name: str
+    number: int
     is_home_team: bool
     ppg: float
     rpg: float
@@ -1113,6 +1123,8 @@ def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[P
     """
     query = """
     SELECT 
+        p.name,
+        p.number,
         pp.*,
         ps.ppg as actual_ppg,
         ps.rpg as actual_rpg,
@@ -1125,7 +1137,8 @@ def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[P
         ps.topg as actual_topg,
         ps.minutes as actual_minutes
     FROM player_projections pp
-    LEFT JOIN player_stats ps ON pp.player_id = ps.player_id AND pp.game_id = ps.game_id
+    LEFT JOIN player_stats ps ON pp.player_id = ps.player_id
+    JOIN players p ON pp.player_id = p.id
     WHERE pp.game_id = %s AND pp.team_id = %s
     """
     
@@ -1133,3 +1146,46 @@ def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[P
     if results:
         return [ProjectedPlayer(**result) for result in results]
     return None
+
+
+class ReportSummary(BaseModel):
+    id: int
+    game_uuid: str
+    home_team_id: int
+    away_team_id: int
+    home_team: str
+    away_team: str
+    created_at: datetime.datetime
+    
+
+def get_report_summaries_by_user_id(user_id: int) -> List[ReportSummary]:
+    """
+    Get report summaries for a user
+    
+    Args:
+        user_id: User ID to get report summaries for
+        
+    Returns:
+        List of ReportSummary objects containing report metadata
+    """
+    query = """
+    SELECT 
+        r.id,
+        g.uuid as game_uuid,
+        g.home_team_id,
+        g.away_team_id,
+        ht.name as home_team,
+        at.name as away_team,
+        r.created_at
+    FROM reports r
+    JOIN games g ON r.game_id = g.id
+    JOIN teams ht ON g.home_team_id = ht.id
+    JOIN teams at ON g.away_team_id = at.id
+    WHERE g.user_id = %s
+    ORDER BY r.created_at DESC
+    """
+    
+    results = execute_query(query, (user_id,))
+    if results:
+        return [ReportSummary(**result) for result in results]
+    return []

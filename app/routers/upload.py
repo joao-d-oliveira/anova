@@ -30,8 +30,8 @@ from app.database.connection import (
 config = Config()
 
 router = APIRouter(
-    prefix="/upload",
-    tags=["upload"],
+    prefix="/task",
+    tags=["task"],
     responses={404: {"description": "Not found"}},
 )
 

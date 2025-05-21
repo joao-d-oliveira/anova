@@ -1,7 +1,6 @@
 import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
-import { BodyUploadFilesApiUploadUploadPost, OverallReport, ProcessingTask, UploadProcessResponse, UserBase, UserConfirm, UserCreate, UserLogin } from './generated/client';
+import { BodyUploadFilesApiTaskUploadPost, OverallReport, ProcessingTask, ReportSummary, ResetPasswordRequest, UploadProcessResponse, UserBase, UserConfirm, UserCreate, UserLogin } from './generated/client';
 import { errorNotification } from './common/notifications';
-import { colorsTuple } from '@mantine/core';
 import { useState } from 'react';
 
 export const queryClient = new QueryClient();
@@ -19,7 +18,7 @@ async function processedFetch<T>(
 
 
     if (!response.ok && !response.redirected) {
-        if (response.status < 500) {
+        if (response.headers.get('content-type')?.includes('application/json')) {
             const data = await response.json();
             throw new Error(data.detail || 'API request failed');
         }
@@ -76,10 +75,13 @@ export const useLogin = () => {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(data),
-            });
+            }, false);
         },
         onError: (error) => {
             errorNotification(error.message);
+        },
+        onSuccess: (data) => {
+            window.location.href = "/dashboard";
         },
     });
     return { login };
@@ -92,13 +94,22 @@ export const useUser = () => {
         staleTime: 1000 * 60 * 5, // Refetch every 5 minutes
         retry: false,
     });
-    return user;
+    return {user};
 };
 
+export const useLogout = () => {
+    const logout = useMutation({
+        mutationFn: async () => await processedFetch<void>("/auth/logout"),
+        onSuccess: () => {
+            window.location.href = "/auth/login";
+        },
+    });
+    return {logout};
+};
 
 export const useUpload = () => {
     const upload = useMutation({
-        mutationFn: async (data: BodyUploadFilesApiUploadUploadPost) => {
+        mutationFn: async (data: BodyUploadFilesApiTaskUploadPost) => {
             const formData = new FormData();
             formData.append('team_files', data.team_files);
             formData.append('opponent_files', data.opponent_files);
@@ -108,7 +119,7 @@ export const useUpload = () => {
                 formData.append('use_local_simulation', data.use_local_simulation.toString());
             }
 
-            return await processedFetch<UploadProcessResponse>("/upload", {
+            return await processedFetch<UploadProcessResponse>("/task/upload", {
                 method: "POST",
                 body: formData,
             });
@@ -122,7 +133,7 @@ export const useAnalysis = ({ task_id }: { task_id: string }) => {
     const status = useQuery({
         queryKey: ["analysis", task_id],
         queryFn: async () => {
-            const response = await processedFetch<ProcessingTask>("/upload/status/" + task_id);
+            const response = await processedFetch<ProcessingTask>("/task/status/" + task_id);
             setAnalysis(response);
             return response;
         },
@@ -144,5 +155,64 @@ export const useReport = ({ game_uuid }: { game_uuid: string }) => {
         queryFn: async () => await processedFetch<OverallReport>("/report/" + game_uuid),
     });
 
-    return { overallReport };
+    const downloadReport = useMutation({
+        mutationFn: async () => {
+            const response = await fetch("/api/report/" + game_uuid + "/download");
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `game-report-${game_uuid}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        },
+    });
+
+    return { overallReport, downloadReport };
+};
+
+export const useReportSummaries = () => {
+    const reportSummaries = useQuery({
+        queryKey: ["report-summaries"],
+        queryFn: async () => await processedFetch<ReportSummary[]>("/report/summaries"),
+    });
+    return { reportSummaries };
+};
+
+export const useForgotPassword = () => {
+    const forgotPassword = useMutation({
+        mutationFn: async (email: string) => {
+            await processedFetch<void>("/auth/forgot-password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email }),
+            });
+        },
+        onError: (error) => {
+            errorNotification(error.message);
+        },
+    });
+    return { forgotPassword };
+};
+
+export const useResetPassword = () => {
+    const resetPassword = useMutation({
+        mutationFn: async (data: ResetPasswordRequest) => {
+            await processedFetch<void>("/auth/reset-password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(data),
+            });
+        },
+        onError: (error) => {
+            errorNotification(error.message);
+        },
+    });
+    return { resetPassword };
 };

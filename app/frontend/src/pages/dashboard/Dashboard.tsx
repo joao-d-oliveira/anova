@@ -1,14 +1,16 @@
 import '@mantine/dropzone/styles.css';
 
-import { Card, Container, FileInput, Group, Stack, TextInput, Title, Text, Button } from "@mantine/core";
+import { Card, Container, FileInput, Group, Stack, TextInput, Title, Text, Button, Space } from "@mantine/core";
 import { useUpload, useUser } from "../../mutations";
 import Header from "../../components/dashboard/Header";
 import { useForm } from "@mantine/form";
 import { Dropzone } from '@mantine/dropzone';
-import { IconPhoto, IconRefresh, IconUpload, IconX } from '@tabler/icons-react';
+import { IconPdf, IconPhoto, IconRefresh, IconUpload, IconX } from '@tabler/icons-react';
 import { useEffect } from 'react';
 import { errorNotification } from '../../common/notifications';
 import { AuthProvider } from '../../providers/AuthProvider';
+import { filledButtonProps, outlineButtonProps } from '../../props/Button';
+import ReportSummaries from '../../components/dashboard/ReportSummaries';
 
 const UploadComponent = ({ form, field }: { form: any, field: string }) => {
     return (
@@ -34,15 +36,12 @@ const UploadComponent = ({ form, field }: { form: any, field: string }) => {
                             <IconX size={52} color="var(--mantine-color-red-6)" stroke={1.5} />
                         </Dropzone.Reject>
                         <Dropzone.Idle>
-                            <IconPhoto size={52} color="var(--mantine-color-dimmed)" stroke={1.5} />
+                            <IconPdf size={52} color="var(--mantine-color-dimmed)" stroke={1.5} />
                         </Dropzone.Idle>
 
                         <div>
                             <Text size="xl" inline>
-                                Drag images here or click to select files
-                            </Text>
-                            <Text size="sm" c="dimmed" inline mt={7}>
-                                Attach as many files as you like, each file should not exceed 5mb
+                                Drag and drop your files here or click to select files
                             </Text>
                         </div>
                     </Group>
@@ -63,7 +62,7 @@ const UploadComponent = ({ form, field }: { form: any, field: string }) => {
 }
 
 export default function Dashboard() {
-    const { data: user } = useUser();
+    const { user } = useUser();
     const { upload } = useUpload();
 
     const form = useForm({
@@ -102,44 +101,46 @@ export default function Dashboard() {
         }
     }, [upload.isSuccess]);
 
-    if (!user) {
-        return <AuthProvider>
-            <div>Loading...</div>
-        </AuthProvider>;
-    }
-
     return (
-        <Container size="xl">
-            <Header />
-            <Title order={1} my='xl'>Upload Your Team and Opponent Stats to Get Started</Title>
-            <form onSubmit={form.onSubmit(handleSubmit)}>
+        <AuthProvider>
+            <Container size="xl">
+                <Header />
+                <Title order={1} my='xl'>Upload Your Team and Opponent Stats to Get Started</Title>
+                <form onSubmit={form.onSubmit(handleSubmit)}>
+                    <Stack>
+                        <Group flex={1} w="100%" align="flex-start">
+                            <Card style={{ flex: 1 }}>
+                                <Card.Section p="md">
+                                    Enter your player stats
+                                </Card.Section>
+                                <Stack>
+                                    <TextInput label="Your Team Name" {...form.getInputProps('yourTeamName')} />
+                                    <UploadComponent form={form} field="yourTeamStats" />
+                                </Stack>
+                            </Card>
+                            <Card style={{ flex: 1 }}>
+                                <Card.Section p="md">
+                                    Enter your player stats
+                                </Card.Section>
+                                <Stack>
+                                    <TextInput label="Opponent Team Name" {...form.getInputProps('opponentTeamName')} />
+                                    <UploadComponent form={form} field="opponentTeamStats" />
+                                </Stack>
+                            </Card>
+                        </Group>
+                        <Group justify="center">
+                            <Button type="submit" miw={120} {...filledButtonProps}>Submit</Button>
+                            <Button variant="outline" type="reset"  {...outlineButtonProps} onClick={() => form.reset()} leftSection={<IconRefresh stroke={1.3} />}>Start again</Button>
+                        </Group>
+                    </Stack>
+                </form>
+                <Space h='lg' />
                 <Stack>
-                    <Group flex={1} w="100%" align="flex-start">
-                        <Card style={{ flex: 1 }}>
-                            <Card.Section p="md">
-                                <Title order={2}>Enter your player stats</Title>
-                            </Card.Section>
-                            <Stack>
-                                <TextInput label="Your Team Name" {...form.getInputProps('yourTeamName')} />
-                                <UploadComponent form={form} field="yourTeamStats" />
-                            </Stack>
-                        </Card>
-                        <Card style={{ flex: 1 }}>
-                            <Card.Section p="md">
-                                <Title order={2}>Enter your player stats</Title>
-                            </Card.Section>
-                            <Stack>
-                                <TextInput label="Opponent Team Name" {...form.getInputProps('opponentTeamName')} />
-                                <UploadComponent form={form} field="opponentTeamStats" />
-                            </Stack>
-                        </Card>
-                    </Group>
-                    <Group justify="center">
-                        <Button type="submit" miw={120}>Submit</Button>
-                        <Button variant="outline" type="reset" onClick={() => form.reset()} leftSection={<IconRefresh stroke={1.3} />}>Start Again</Button>
-                    </Group>
+                    <Title order={1} my='xl'>Your Report Summaries</Title>
+                    <ReportSummaries />
                 </Stack>
-            </form>
-        </Container>
+            </Container>
+            <Space h='128' />
+        </AuthProvider>
     );
 }

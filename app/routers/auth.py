@@ -57,6 +57,16 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: datetime.datetime
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+    confirm_password: str
+
+
 class MessageResponse(BaseModel):
     detail: str
 
@@ -123,20 +133,18 @@ async def login_user(user_data: UserLogin):
         )
     
     # Create session
-    session_token = create_session_token()
-    expires_at = datetime.datetime.now() + datetime.timedelta(days=30)
-    
-    session_id = create_session(user["id"], session_token, expires_at.isoformat())
-    if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create session"
-        )
-    
-    return TokenResponse(
-        access_token=session_token,
-        expires_at=expires_at
+    token = jwt.encode(
+        {"sub": user_data.email, "exp": datetime.datetime.now() + datetime.timedelta(days=7)},
+        config.session_secret_key,
+        algorithm="HS256",
     )
+
+    response = Response(status_code=200)
+    response.set_cookie(
+        **get_cookie_dict(token)
+    )
+
+    return response
 
 @router.post("/confirm-email")
 async def confirm_email(data: UserConfirm):
@@ -176,17 +184,20 @@ async def confirm_email(data: UserConfirm):
 
     return response
 
-@router.post("/logout", response_model=MessageResponse)
-async def logout_user(request: Request):
+@router.get("/logout", response_model=MessageResponse)
+async def logout_user():
     """Log out a user"""
-    # Get session token from cookies
-    session_token = request.cookies.get("session_token")
-    
-    if session_token:
-        # Delete session from database
-        delete_session(session_token)
-    
-    return MessageResponse(detail="Successfully logged out")
+    response = Response(status_code=200)
+    response.set_cookie(
+        "Authorization",
+        path="/",
+        httponly=True,
+        secure=config.environment != "development",
+        samesite="lax",
+        max_age=0
+    )
+
+    return response
 
 @router.post("/register", response_model=MessageResponse)
 async def register_user(user_data: UserCreate):
@@ -248,10 +259,10 @@ async def register_user(user_data: UserCreate):
     return MessageResponse(detail="Successfully registered")
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(email: EmailStr):
+async def forgot_password(payload:ForgotPasswordRequest):
     """Initiate password reset"""
     # Get user from database
-    user = get_user_by_email(email)
+    user = get_user_by_email(payload.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -259,11 +270,11 @@ async def forgot_password(email: EmailStr):
         )
     
     # Generate reset token
-    reset_token = secrets.token_urlsafe(32)
+    reset_token = ''.join(random.choices('0123456789', k=6))
     create_otp(user["id"], reset_token)
     
     # Store reset token in database
-    send_reset_password_email(email, reset_token, config)
+    send_reset_password_email(payload.email, reset_token, config)
 
     return MessageResponse(
         detail="Password reset initiated! Please check your email for instructions."
@@ -271,21 +282,18 @@ async def forgot_password(email: EmailStr):
 
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(
-    email: EmailStr,
-    token: str,
-    new_password: str,
-    confirm_password: str
+    reset_password_request: ResetPasswordRequest
 ):
     """Complete password reset"""
     # Validate passwords match
-    if new_password != confirm_password:
+    if reset_password_request.new_password != reset_password_request.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Passwords do not match"
         )
     
     # Validate password meets requirements
-    is_valid, error_message = validate_password(new_password)
+    is_valid, error_message = validate_password(reset_password_request.new_password)
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -293,7 +301,7 @@ async def reset_password(
         )
     
     # Get user from database
-    user = get_user_by_email(email)
+    user = get_user_by_email(reset_password_request.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -301,18 +309,19 @@ async def reset_password(
         )
     
     # Verify reset token
-    # Note: You would need to verify the token from the reset_tokens table
-    # For now, we'll just update the password
+    if not verify_otp(user["id"], reset_password_request.otp):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token"
+        )
     
     # Hash new password
-    password_hash = hash_password(new_password)
+    password_hash = hash_password(reset_password_request.new_password)
     
     # Update password
-    if not update_user_password(user["id"], password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update password"
-        )
+    update_user_password(user["id"], password_hash)
+
+    delete_otp(user["id"], reset_password_request.otp)
     
     return MessageResponse(
         detail="Password reset successful! You can now log in with your new password."
