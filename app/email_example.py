@@ -14,7 +14,7 @@ def main():
     config = Config()
     
     # Email details
-    recipient_email = "recipient@example.com"  # Replace with actual recipient
+    recipient_email = "joao.d.oliveira@gmail.com"  # Replace with actual recipient
     subject = "Test Email from Anova Sports"
     
     # HTML body

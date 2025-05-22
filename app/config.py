@@ -150,6 +150,12 @@ class Config:
         self._values["email_noreply_password"] = os.getenv("EMAIL_NOREPLY_PASSWORD", "")
         self._values["email_smtp_server"] = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
         self._values["email_smtp_port"] = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+
+        print("DEBUG: Email configuration loaded")
+        print(f"DEBUG: Email noreply address: {self._values['email_noreply_address']}")
+        print(f"DEBUG: Email SMTP server: {self._values['email_smtp_server']}")
+        print(f"DEBUG: Email SMTP port: {self._values['email_smtp_port']}")
+        print(f"DEBUG: Email noreply password: {self._values['email_noreply_password']}")
     
     def _validate_config(self):
         """Validate required configuration values"""
