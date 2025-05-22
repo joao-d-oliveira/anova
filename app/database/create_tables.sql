@@ -149,11 +149,10 @@ CREATE TABLE IF NOT EXISTS team_analysis (
     offensive_keys TEXT[],
     defensive_keys TEXT[],
     game_factors TEXT[],
-    rotation_plan TEXT,
+    rotation_plan TEXT[],
     situational_adjustments TEXT[],
     game_keys TEXT[],
     playing_style TEXT,
-    team_data JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -176,7 +175,6 @@ CREATE TABLE IF NOT EXISTS game_simulations (
     playbook_special_situations JSONB,
     playbook_inbound_plays JSONB,
     playbook_after_timeout_special_plays JSONB,
-    simulation_data JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

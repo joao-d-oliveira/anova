@@ -42,9 +42,10 @@ processing_tasks = {}
 # Processing steps for progress tracking
 PROCESSING_STEPS = [
     "Analyzing team statistics",
-    "Analyzing opponent statistics",
     "Storing data in database",
     "Generating team analysis report",
+    "Analyzing opponent statistics",
+    "Storing data in database",
     "Generating opponent analysis report",
     "Simulating game",
     "Generating final report"
@@ -455,23 +456,22 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[0]
         
 
-        with open("/Users/edoardo/programming/anova/team1_wrapper.json", "r") as f:
-            team_wrapper = TeamWrapper.model_validate_json(f.read())
-        
-        # team_wrapper = analyze_team_pdf(team_file_path, is_our_team=True)
-        # with open("/tmp/team1_wrapper.json", "w") as f:
-        #     json.dump(team_wrapper.model_dump(mode="json"), f)
+        team_wrapper = analyze_team_pdf(team_file_path, is_our_team=True)
+
+        processing_tasks[task_id]["current_step"] = 1
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[1]
 
         team_analysis = team_wrapper.team_analysis
         print("Generated team analysis")
         # print("-"*40 + "\n" + "DEBUG - Team Analysis:", team_analysis)
 
-        team_id = insert_team(team_wrapper.team_details, team_analysis)
-        team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
-
+        # Step 2: Store data in database
         # Override team name if provided
         if team_name:
             team_wrapper.team_details.team_name = team_name
+        
+        team_id = insert_team(team_wrapper.team_details, team_analysis)
+        team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
 
         team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
 
@@ -491,19 +491,17 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         team_analysis_id = insert_team_analysis(team_id, team_analysis)
 
         # Step 4: Generate team analysis report
-        processing_tasks[task_id]["current_step"] = 3
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[3]
+        processing_tasks[task_id]["current_step"] = 2
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[2]
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         team_analysis_path = generate_team_analysis_report(team_wrapper, timestamp)
         
 
         # Step 2: Analyze opponent PDF
-        processing_tasks[task_id]["current_step"] = 1
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[1]
+        processing_tasks[task_id]["current_step"] = 3
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[3]
 
-        with open("/Users/edoardo/programming/anova/team2_wrapper.json", "r") as f:
-            opponent_wrapper = TeamWrapper.model_validate_json(f.read())
-        # opponent_wrapper = analyze_team_pdf(opponent_file_path, is_our_team=False)
+        opponent_wrapper = analyze_team_pdf(opponent_file_path, is_our_team=False)
         
         opponent_analysis = opponent_wrapper.team_analysis
         print("Generated opponent analysis")
@@ -514,8 +512,8 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
             opponent_wrapper.team_details.team_name = opponent_name
         
         # Step 3: Store data in database
-        processing_tasks[task_id]["current_step"] = 2
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[2]
+        processing_tasks[task_id]["current_step"] = 4
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
         
         # Insert teams into database
         print("DEBUG - Inserting teams into database")
@@ -529,7 +527,7 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         print(f"DEBUG - Team Stats ID: {team_stats_id}, Opponent Stats ID: {opponent_stats_id}")
         
         for player in opponent_wrapper.team_details.players:
-            player_id = insert_player(team_id, player)
+            player_id = insert_player(opponent_id, player)
             print(f"DEBUG - Team Player ID: {player_id}, Name: {player.name}")
             if player_id:
                 # Insert raw stats first
@@ -556,8 +554,8 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         
 
         # Step 5: Generate opponent analysis report
-        processing_tasks[task_id]["current_step"] = 4
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
+        processing_tasks[task_id]["current_step"] = 5
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
         opponent_analysis_path = generate_team_analysis_report(opponent_wrapper, timestamp)
         
         # print("-"*40 + "\n" + f"DEBUG - Team Analysis Report Path: {team_analysis_path}")
@@ -571,13 +569,10 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
             print(f"DEBUG - Team Report ID: {team_report_id}, Opponent Report ID: {opponent_report_id}")
         
         # Step 6: Simulate game
-        processing_tasks[task_id]["current_step"] = 5
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[5]
-        with open("/Users/edoardo/programming/anova/simulation_results.json", "r") as f:
-            simulation_results = GameSimulation.model_validate_json(f.read())
-        # simulation_results = simulate_game(team_wrapper, opponent_wrapper, use_local=use_local_simulation)
-        # with open("/Users/edoardo/programming/anova/simulation_results.json", "w+") as f:
-        #     json.dump(simulation_results.model_dump(mode="json"), f)
+        processing_tasks[task_id]["current_step"] = 6
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[6]
+        
+        simulation_results = simulate_game(team_wrapper, opponent_wrapper, use_local=use_local_simulation)
         
         simulation_results_dict = simulation_results.model_dump(mode="json")
         # print("-"*40 + "\n" + "DEBUG - Simulation Results:", simulation_results)
@@ -660,8 +655,8 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
                         print(f"DEBUG - Opponent Player Projection ID: {projection_id}, Player: {player_name}")
         
         # Step 7: Generate final report
-        processing_tasks[task_id]["current_step"] = 6
-        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[6]
+        processing_tasks[task_id]["current_step"] = 7
+        processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[7]
         
         # Prepare analysis results in the format expected by report_gen
         analysis_results = {
@@ -807,4 +802,4 @@ if __name__ == "__main__":
     process_files("0d05182f-2088-418f-bd4e-fed202f8a271", [
         '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/opponent_ARLINGTON Last 5 games INDIVIDUAL stats.pdf',
         '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/team_SCARSDALE Last 5 games individual stats.pdf'
-    ], {"id": 1}, "Team 1", "Team 2", True)
+    ], {"id": 1}, "Team 1", "Team 2", False)

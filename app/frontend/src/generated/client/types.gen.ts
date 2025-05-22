@@ -12,7 +12,7 @@ export type ForgotPasswordRequest = {
     email: string;
 };
 
-export type GameSimulation = {
+export type GameSimulationResponse = {
     id: number | null;
     game_id: number;
     win_probability: string | null;
@@ -21,6 +21,14 @@ export type GameSimulation = {
     sim_success_factors: string | null;
     sim_key_matchups: string | null;
     sim_win_loss_patterns: string | null;
+    sim_critical_advantage: string | null;
+    sim_keys_to_victory: Array<string>;
+    sim_situational_adjustments: Array<SituationalAdjustment>;
+    playbook_offensive_plays: Array<PlaybookPlay>;
+    playbook_defensive_plays: Array<PlaybookPlay>;
+    playbook_special_situations: Array<PlaybookPlay>;
+    playbook_inbound_plays: Array<PlaybookPlay>;
+    playbook_after_timeout_special_plays: Array<PlaybookPlay>;
 };
 
 export type HttpValidationError = {
@@ -34,13 +42,22 @@ export type MessageResponse = {
 export type OverallReport = {
     created_at: string;
     game_uuid: string;
-    game_simulation: GameSimulation;
-    team: Team;
-    team_stats: TeamStats;
+    game_simulation: GameSimulationResponse;
+    team: TeamResponse;
+    team_stats: TeamStatsResponse;
+    team_analysis: TeamAnalysisResponse;
     team_player_analysis: Array<ProjectedPlayer>;
-    opponent: Team;
-    opponent_stats: TeamStats;
+    opponent: TeamResponse;
+    opponent_stats: TeamStatsResponse;
+    opponent_analysis: TeamAnalysisResponse;
     opponent_player_analysis: Array<ProjectedPlayer>;
+};
+
+export type PlaybookPlay = {
+    play_name: string;
+    purpose: string;
+    execution: string;
+    counter: string;
 };
 
 export type ProcessingTask = {
@@ -72,6 +89,8 @@ export type ProjectedPlayer = {
     fg_pct: string;
     fg3_pct: string;
     role: string;
+    strengths: Array<string>;
+    weaknesses: Array<string>;
     actual_ppg: number | null;
     actual_rpg: number | null;
     actual_apg: number | null;
@@ -82,13 +101,11 @@ export type ProjectedPlayer = {
     actual_bpg: number | null;
     actual_topg: number | null;
     actual_minutes: number | null;
-    created_at: string | null;
-    updated_at: string | null;
 };
 
 export type ReportSummary = {
     id: number;
-    game_uuid: number;
+    game_uuid: string;
     home_team_id: number;
     away_team_id: number;
     home_team: string;
@@ -103,15 +120,33 @@ export type ResetPasswordRequest = {
     confirm_password: string;
 };
 
-export type Team = {
+export type SituationalAdjustment = {
+    scenario: string;
+    adjustment: string;
+    outcome: string;
+};
+
+export type TeamAnalysisResponse = {
+    playing_style: string;
+    strengths: Array<string>;
+    weaknesses: Array<string>;
+    key_players: Array<string>;
+    offensive_keys: Array<string>;
+    defensive_keys: Array<string>;
+    game_factors: Array<string>;
+    rotation_plan: Array<string>;
+    situational_adjustments: Array<string>;
+    game_keys: Array<string>;
+};
+
+export type TeamResponse = {
     id: number;
     name: string;
     record: string | null;
     ranking: string | null;
-    playing_style: string | null;
 };
 
-export type TeamStats = {
+export type TeamStatsResponse = {
     ppg: number | null;
     fg_pct: string | null;
     fg_made: number | null;

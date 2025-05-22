@@ -8,7 +8,7 @@ import logging
 
 from pydantic import BaseModel
 from app.config import Config
-from app.models import GameSimulation, Player, PlayerStats, TeamAnalysis, TeamDetails, TeamStats
+from app.models import GameSimulation, PlaybookPlay, Player, PlayerStats, SituationalAdjustment, TeamAnalysis, TeamDetails, TeamStats
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ def update_team_stats_game_id(team_stats_id, game_id):
     SET game_id = %s
     WHERE id = %s
     """
-    execute_query(query, (game_id, team_stats_id))
+    execute_query(query, (game_id, team_stats_id), fetch=False)
 
 def insert_player(team_id, player_data: Player):
     """
@@ -284,7 +284,7 @@ def insert_team_analysis(team_id, analysis_data: TeamAnalysis):
         offensive_keys, defensive_keys, game_factors,
         rotation_plan, situational_adjustments, game_keys
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     
@@ -299,7 +299,7 @@ def insert_team_analysis(team_id, analysis_data: TeamAnalysis):
         analysis_data.game_factors,
         analysis_data.rotation_plan,
         analysis_data.situational_adjustments,
-        analysis_data.game_keys,
+        analysis_data.game_keys
     )
     
     result = execute_query(query, params)
@@ -386,6 +386,7 @@ def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=No
     if result and len(result) > 0:
         return result[0]["id"], result[0]["uuid"]
     return None
+
 def insert_game_simulation(game_id, simulation_data: GameSimulation):
     """
     Insert game simulation into the database
@@ -894,7 +895,6 @@ def delete_expired_sessions():
     result = execute_query(query, fetch=False)
     return result is not None
 
-
 def create_otp(user_id: int, otp: str):
     """
     Create a unique token for a user
@@ -992,6 +992,38 @@ def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStatsRe
     return None
 
 
+class TeamAnalysisResponse(BaseModel):
+    playing_style: str
+    strengths: List[str]
+    weaknesses: List[str]
+    key_players: List[str]
+    offensive_keys: List[str]
+    defensive_keys: List[str]
+    game_factors: List[str]
+    rotation_plan: List[str]
+    situational_adjustments: List[str]
+    game_keys: List[str]
+    
+
+def get_team_analysis_by_team_id(team_id: int) -> Optional[TeamAnalysisResponse]:
+    """
+    Get team analysis by team ID
+    
+    Args:
+        team_id: Team ID
+        
+    Returns:
+        TeamAnalysisResponse object if found, None otherwise
+    """
+    query = """
+    SELECT * FROM team_analysis WHERE team_id = %s ORDER BY created_at DESC LIMIT 1
+    """
+    results = execute_query(query, (team_id,))
+    if results and len(results) > 0:
+        return TeamAnalysisResponse.model_validate(results[0])
+    return None
+
+
 class Game(BaseModel):
     id: int
     uuid: str
@@ -1023,6 +1055,7 @@ def get_game_by_uuid(game_uuid: str) -> Optional[Game]:
         return Game(**results[0])
     return None
 
+
 class GameSimulationResponse(BaseModel):
     id: Optional[int]
     game_id: int
@@ -1032,6 +1065,15 @@ class GameSimulationResponse(BaseModel):
     sim_success_factors: Optional[str]
     sim_key_matchups: Optional[str]
     sim_win_loss_patterns: Optional[str]
+    sim_critical_advantage: Optional[str]
+    sim_keys_to_victory: List[str]
+    sim_situational_adjustments: List[SituationalAdjustment]
+    playbook_offensive_plays: List[PlaybookPlay]
+    playbook_defensive_plays: List[PlaybookPlay]
+    playbook_special_situations: List[PlaybookPlay]
+    playbook_inbound_plays: List[PlaybookPlay]
+    playbook_after_timeout_special_plays: List[PlaybookPlay]
+
 
 def get_game_simulation(game_id: int) -> Optional[GameSimulationResponse]:
     """
@@ -1041,14 +1083,14 @@ def get_game_simulation(game_id: int) -> Optional[GameSimulationResponse]:
         game_id: Game ID
         
     Returns:
-        GameSimulation object if found, None otherwise
+        GameSimulationResponse object if found, None otherwise
     """
     query = """
     SELECT * FROM game_simulations WHERE game_id = %s
     """
     results = execute_query(query, (game_id,))
     if results and len(results) > 0:
-        return GameSimulationResponse(**results[0])
+        return GameSimulationResponse.model_validate(results[0])
     return None
 
 class ProjectedPlayer(BaseModel):
@@ -1065,6 +1107,8 @@ class ProjectedPlayer(BaseModel):
     fg_pct: str
     fg3_pct: str
     role: str
+    strengths: List[str]
+    weaknesses: List[str]
     actual_ppg: Optional[float]
     actual_rpg: Optional[float]
     actual_apg: Optional[float]
@@ -1075,8 +1119,6 @@ class ProjectedPlayer(BaseModel):
     actual_bpg: Optional[float]
     actual_topg: Optional[float]
     actual_minutes: Optional[float]
-    created_at: Optional[datetime.datetime]
-    updated_at: Optional[datetime.datetime]
 
 def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[ProjectedPlayer]]:
     """
@@ -1093,6 +1135,8 @@ def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[P
     SELECT 
         p.name,
         p.number,
+        p.strengths,
+        p.weaknesses,
         pp.*,
         ps.ppg as actual_ppg,
         ps.rpg as actual_rpg,

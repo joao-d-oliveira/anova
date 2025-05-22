@@ -5,7 +5,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.config import Config
-from app.database.connection import GameSimulationResponse, ProjectedPlayer, ReportSummary, TeamResponse, TeamStatsResponse, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
+from app.database.connection import GameSimulationResponse, ProjectedPlayer, ReportSummary, TeamAnalysisResponse, TeamResponse, TeamStatsResponse, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_analysis_by_team_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
+from app.models import TeamAnalysis
 from app.routers.util import get_verified_user_email
 
 
@@ -97,10 +98,14 @@ class OverallReport(BaseModel):
     
     team: TeamResponse
     team_stats: TeamStatsResponse
+    team_analysis: TeamAnalysisResponse
     team_player_analysis: List[ProjectedPlayer]
+
     opponent: TeamResponse
     opponent_stats: TeamStatsResponse
+    opponent_analysis: TeamAnalysisResponse
     opponent_player_analysis: List[ProjectedPlayer]
+
 
 
 
@@ -129,12 +134,14 @@ async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_ver
 
     # get team analysis
     team = get_team_by_id(game.home_team_id)
-    team_analysis = get_team_stats_from_game(game.id, team.id)
+    team_stats = get_team_stats_from_game(game.id, team.id)
+    team_analysis = get_team_analysis_by_team_id(team.id)
     team_player_analysis = get_projected_player_for_game(game.id, team.id)
     
     # get opponent analysis
     opponent = get_team_by_id(game.away_team_id)
-    opponent_analysis = get_team_stats_from_game(game.id, opponent.id)
+    opponent_stats = get_team_stats_from_game(game.id, opponent.id)
+    opponent_analysis = get_team_analysis_by_team_id(opponent.id)
     opponent_player_analysis = get_projected_player_for_game(game.id, opponent.id)
 
     return OverallReport(
@@ -143,12 +150,14 @@ async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_ver
         game_simulation=game_report,
 
         team=team,
-        team_stats=team_analysis,
+        team_stats=team_stats,
         team_player_analysis=team_player_analysis,
+        team_analysis=team_analysis,
 
         opponent=opponent,
-        opponent_stats=opponent_analysis,
-        opponent_player_analysis=opponent_player_analysis
+        opponent_stats=opponent_stats,
+        opponent_player_analysis=opponent_player_analysis,
+        opponent_analysis=opponent_analysis
     )
 
 @router.get("/{game_uuid}/download")

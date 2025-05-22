@@ -1,122 +1,154 @@
-import { Stack, Title, Text, Table, Card, Divider, Grid, Group, Space, Paper, Box } from "@mantine/core";
-import { Team, TeamStats } from "../../../generated/client";
-import { ProjectedPlayer } from "../../../generated/client";
-import PillStat from "./PillStat";
+import { Stack, Title, Text, Card, Divider, Grid, Group, Space, Table } from "@mantine/core";
+import { TeamAnalysisResponse, GameSimulationResponse, ProjectedPlayer, TeamResponse } from "../../../generated/client";
+import StringList from "../StringList";
+import PlayDetails from "./PlayDetails";
+import SituationalDetails from "./SituationalDetails";
 
-export default function TeamAnalysis({ team, teamStats, playerStats }: { team: Team, teamStats: TeamStats, playerStats: ProjectedPlayer[] }) {
+export default function GameSimulation({ gameSimulation, team, opponent, teamAnalysis, opponentAnalysis, teamPlayerAnalysis, opponentPlayerAnalysis }: {
+    gameSimulation: GameSimulationResponse,
+    team: TeamResponse,
+    opponent: TeamResponse,
+    teamAnalysis: TeamAnalysisResponse,
+    opponentAnalysis: TeamAnalysisResponse,
+    teamPlayerAnalysis: ProjectedPlayer[],
+    opponentPlayerAnalysis: ProjectedPlayer[]
+}) {
     return (
         <>
             <Stack>
-                <Title order={2}>{team.name} Report</Title>
-                <Text>
-                    {team.record}
-                </Text>
+                <Title order={3}>Game Simulation</Title>
+
+                {/* Simulated Outcome */}
                 <Card>
                     <Card.Section>
-                        Playing Style
+                        Simulated Outcome
                     </Card.Section>
-                    <Text>{team.playing_style}</Text>
+                    <Stack mt="xs" gap={0}>
+                        <Text size="lg">{gameSimulation.win_probability}</Text>
+                    </Stack>
                 </Card>
-                <Divider my='lg' />
-                <Title order={2}>Key Players Projections</Title>
-                <Grid>
-                    {playerStats.map((player) => (
-                        <Grid.Col key={player.id} span={6}>
-                            <Card>
-                                <Card.Section>
-                                    <Group justify='space-between'>
-                                        <Text fw={700} size='md'>{player.name}</Text>
-                                        <Text size='md'>#{player.number}</Text>
-                                    </Group>
-                                </Card.Section>
-                                <Grid>
-                                    <Grid.Col span={3}>
-                                        <Stack>
-                                            <PillStat label='PPG' value={player.actual_ppg.toString()} />
-                                            <PillStat label='REB' value={player.actual_rpg.toString()} />
-                                        </Stack>
-                                    </Grid.Col>
-                                    <Grid.Col span={3}>
-                                        <Stack>
-                                            <PillStat label='FG%' value={player.actual_fg_pct.toString()} />
-                                            <PillStat label='AST' value={player.actual_apg.toString()} />
-                                        </Stack>
-                                    </Grid.Col>
-                                    <Grid.Col span={3}>
-                                        <Stack>
-                                            <PillStat label='3PT%' value={player.actual_fg3_pct.toString()} />
-                                            <PillStat label='STL' value={player.actual_spg.toString()} />
-                                        </Stack>
-                                    </Grid.Col>
-                                    <Grid.Col span={3}>
-                                        <Stack>
-                                            <PillStat label='FT%' value={player.actual_ft_pct.toString()} />
-                                            <PillStat label='BLK' value={player.actual_bpg.toString()} />
-                                        </Stack>
-                                    </Grid.Col>
-                                </Grid>
-                                <Divider my='sm' />
-                                <Grid>
-                                    <Grid.Col span={6}>
-                                        <Stack>
-                                            <Text size="sm" c="dimmed" pb='sm'>
-                                                Strengths
-                                            </Text>
-                                        </Stack>
-                                    </Grid.Col>
-                                    <Grid.Col span={6}>
-                                        <Stack>
-                                            <Text size="sm" c="dimmed" pb='sm'>
-                                                Weaknesses
-                                            </Text>
-                                        </Stack>
-                                    </Grid.Col>
-                                </Grid>
-                                <Text size="sm" c="dimmed" pb='sm'>
-                                    {player.role}
-                                </Text>
-                                <Table>
-                                    <Table.Thead>
-                                        <Table.Tr>
-                                            <Table.Th>Stat</Table.Th>
-                                            <Table.Th>Projected</Table.Th>
-                                            <Table.Th>Actual</Table.Th>
-                                        </Table.Tr>
-                                    </Table.Thead>
-                                    <Table.Tbody>
-                                        <Table.Tr>
-                                            <Table.Td>Points</Table.Td>
-                                            <Table.Td>{player.ppg}</Table.Td>
-                                            <Table.Td>{player.actual_ppg ?? '-'}</Table.Td>
-                                        </Table.Tr>
-                                        <Table.Tr>
-                                            <Table.Td>Rebounds</Table.Td>
-                                            <Table.Td>{player.rpg}</Table.Td>
-                                            <Table.Td>{player.actual_rpg ?? '-'}</Table.Td>
-                                        </Table.Tr>
-                                        <Table.Tr>
-                                            <Table.Td>Assists</Table.Td>
-                                            <Table.Td>{player.apg}</Table.Td>
-                                            <Table.Td>{player.actual_apg ?? '-'}</Table.Td>
-                                        </Table.Tr>
-                                        <Table.Tr>
-                                            <Table.Td>FG%</Table.Td>
-                                            <Table.Td>{player.fg_pct}</Table.Td>
-                                            <Table.Td>{player.actual_fg_pct ?? '-'}</Table.Td>
-                                        </Table.Tr>
-                                        <Table.Tr>
-                                            <Table.Td>3P%</Table.Td>
-                                            <Table.Td>{player.fg3_pct}</Table.Td>
-                                            <Table.Td>{player.actual_fg3_pct ?? '-'}</Table.Td>
-                                        </Table.Tr>
-                                    </Table.Tbody>
-                                </Table>
-                            </Card>
+
+                <Divider my="md" />
+
+                {/* Success Factors */}
+                <Card>
+                    <Card.Section>
+                        Success Factors
+                    </Card.Section>
+                    <Grid mt="md">
+                        <Grid.Col span={6}>
+                            <StringList text={gameSimulation.sim_success_factors} startIndex={0} maxElements={2} />
                         </Grid.Col>
-                    ))}
+                        <Grid.Col span={6}>
+                            <StringList text={gameSimulation.sim_success_factors} startIndex={2} maxElements={2} />
+                        </Grid.Col>
+                    </Grid>
+                </Card>
+
+                <Divider my="md" />
+
+                {/* Keys to Victory */}
+                <Grid>
+                    <Grid.Col span={6}>
+                        <Card>
+                            <Card.Section>
+                                Offensive Keys to Victory
+                            </Card.Section>
+                            <StringList maxElements={5} text={teamAnalysis.offensive_keys.join('\n')} />
+                        </Card>
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                        <Card>
+                            <Card.Section>
+                                Defensive Keys to Victory
+                            </Card.Section>
+                            <StringList maxElements={5} text={opponentAnalysis.defensive_keys.join('\n')} />
+                        </Card>
+                    </Grid.Col>
                 </Grid>
+
+                <Divider my="md" />
+
+                {/* Player Projections */}
+                <Card>
+                    <Card.Section>
+                        Player Projections
+                    </Card.Section>
+                    <Title order={4} mt="sm" mb="md">{team.name}</Title>
+                    <Table striped>
+                        <Table.Thead>
+                            <Table.Tr>
+                                <Table.Th>Player</Table.Th>
+                                <Table.Th>PPG</Table.Th>
+                                <Table.Th>RPG</Table.Th>
+                                <Table.Th>APG</Table.Th>
+                                <Table.Th>FG%</Table.Th>
+                                <Table.Th>3PT%</Table.Th>
+                                <Table.Th>Role</Table.Th>
+                            </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            {teamPlayerAnalysis.map((player) => (
+                                <Table.Tr key={`team-${player.id}`}>
+                                    <Table.Td>{player.name}</Table.Td>
+                                    <Table.Td>{player.ppg}</Table.Td>
+                                    <Table.Td>{player.rpg}</Table.Td>
+                                    <Table.Td>{player.apg}</Table.Td>
+                                    <Table.Td>{player.fg_pct}</Table.Td>
+                                    <Table.Td>{player.fg3_pct}</Table.Td>
+                                    <Table.Td>{player.role}</Table.Td>
+                                </Table.Tr>
+                            ))}
+                        </Table.Tbody>
+                    </Table>
+
+                    <Title order={4} mt="xl" mb="md">{opponent.name}</Title>
+
+                    <Table striped>
+                        <Table.Thead>
+                            <Table.Tr>
+                                <Table.Th>Player</Table.Th>
+                                <Table.Th>PPG</Table.Th>
+                                <Table.Th>RPG</Table.Th>
+                                <Table.Th>APG</Table.Th>
+                                <Table.Th>FG%</Table.Th>
+                                <Table.Th>3PT%</Table.Th>
+                                <Table.Th>Role</Table.Th>
+                            </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            {opponentPlayerAnalysis.map((player) => (
+                                <Table.Tr key={`opponent-${player.id}`}>
+                                    <Table.Td>{player.name}</Table.Td>
+                                    <Table.Td>{player.ppg}</Table.Td>
+                                    <Table.Td>{player.rpg}</Table.Td>
+                                    <Table.Td>{player.apg}</Table.Td>
+                                    <Table.Td>{player.fg_pct}</Table.Td>
+                                    <Table.Td>{player.fg3_pct}</Table.Td>
+                                    <Table.Td>{player.role}</Table.Td>
+                                </Table.Tr>
+                            ))}
+                        </Table.Tbody>
+                    </Table>
+                </Card>
+
+                <Divider my="md" />
+
+                {/* Situational Adjustments */}
+                <Title order={3}>Situational Adjustments</Title>
+                <Stack>
+                    {gameSimulation.sim_situational_adjustments.map((adjustment, index) => (
+                        <Card key={`adjustment-${index}`}>
+                            <SituationalDetails
+                                purpose={adjustment.adjustment}
+                                execution={adjustment.outcome}
+                                adjustment={adjustment.adjustment}
+                            />
+                        </Card>
+                    ))}
+                </Stack>
             </Stack>
-            <Space h='256px' />
+            <Space h="256px" />
         </>
-    )
+    );
 }

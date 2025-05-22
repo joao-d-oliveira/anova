@@ -4,6 +4,9 @@ import { useReport } from "../../mutations";
 import Overview from "../../components/dashboard/game/Overview";
 import TeamAnalysis from "../../components/dashboard/game/TeamAnalysis";
 import { filledButtonProps } from "../../props/Button";
+import GamePlan from "../../components/dashboard/game/GamePlan";
+import Playbook from "../../components/dashboard/game/Playbook";
+import GameSimulation from "../../components/dashboard/game/GameSimulation";
 
 export default function GameReport() {
     const { searchParams } = new URL(window.location.href);
@@ -48,6 +51,15 @@ export default function GameReport() {
                 <Tabs.Tab value="team">
                     Team Analysis
                 </Tabs.Tab>
+                <Tabs.Tab value="game_plan">
+                    Game Plan
+                </Tabs.Tab>
+                <Tabs.Tab value="playbook">
+                    Playbook
+                </Tabs.Tab>
+                <Tabs.Tab value="game_simulation">
+                    Game Simulation
+                </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="overview">
@@ -57,13 +69,29 @@ export default function GameReport() {
 
             <Tabs.Panel value="scouting">
                 <Space h='xl' />
-                <TeamAnalysis team={overallReport.data.team} teamStats={overallReport.data.team_stats} playerStats={overallReport.data.team_player_analysis} />
+                <TeamAnalysis team={overallReport.data.team} teamAnalysis={overallReport.data.team_analysis} teamStats={overallReport.data.team_stats} playerStats={overallReport.data.team_player_analysis} />
             </Tabs.Panel>
 
             <Tabs.Panel value="team">
                 <Space h='xl' />
-                <TeamAnalysis team={overallReport.data.opponent} teamStats={overallReport.data.opponent_stats} playerStats={overallReport.data.opponent_player_analysis} />
+                <TeamAnalysis team={overallReport.data.opponent} teamAnalysis={overallReport.data.opponent_analysis} teamStats={overallReport.data.opponent_stats} playerStats={overallReport.data.opponent_player_analysis} />
             </Tabs.Panel>
+
+            <Tabs.Panel value="game_plan">
+                <Space h='xl' />
+                <GamePlan gameSimulation={overallReport.data.game_simulation} teamAnalysis={overallReport.data.team_analysis} opponentAnalysis={overallReport.data.opponent_analysis} />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="playbook">
+                <Space h='xl' />
+                <Playbook gameSimulation={overallReport.data.game_simulation} teamAnalysis={overallReport.data.team_analysis} opponentAnalysis={overallReport.data.opponent_analysis} />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="game_simulation">
+                <Space h='xl' />
+                <GameSimulation team={overallReport.data.team} opponent={overallReport.data.opponent} gameSimulation={overallReport.data.game_simulation} teamAnalysis={overallReport.data.team_analysis} opponentAnalysis={overallReport.data.opponent_analysis} teamPlayerAnalysis={overallReport.data.team_player_analysis} opponentPlayerAnalysis={overallReport.data.opponent_player_analysis} />
+            </Tabs.Panel>
+
         </Tabs>
     </Container>;
 }

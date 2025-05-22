@@ -98,7 +98,7 @@ class TeamAnalysis(BaseModel):
     offensive_keys: List[str]
     defensive_keys: List[str]
     game_factors: List[str]
-    rotation_plan: str
+    rotation_plan: List[str]
     situational_adjustments: List[str]
     game_keys: List[str]
 

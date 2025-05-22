@@ -5,7 +5,7 @@ import { useUpload, useUser } from "../../mutations";
 import Header from "../../components/dashboard/Header";
 import { useForm } from "@mantine/form";
 import { Dropzone } from '@mantine/dropzone';
-import { IconPdf, IconPhoto, IconRefresh, IconUpload, IconX } from '@tabler/icons-react';
+import { IconPdf, IconRefresh, IconUpload, IconX } from '@tabler/icons-react';
 import { useEffect } from 'react';
 import { errorNotification } from '../../common/notifications';
 import { AuthProvider } from '../../providers/AuthProvider';

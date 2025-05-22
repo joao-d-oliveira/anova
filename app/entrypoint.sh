@@ -26,4 +26,4 @@ fi
 
 # Start the application with increased logging
 echo "Starting uvicorn server..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug
+exec python -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug
