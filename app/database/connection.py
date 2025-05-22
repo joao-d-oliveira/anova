@@ -792,7 +792,7 @@ def update_user_password(user_id: int, password_hash: str):
     """
     query = """
     UPDATE users
-    SET password_hash = %s
+    SET password_hash = %s, confirmed = TRUE
     WHERE id = %s
     """
     

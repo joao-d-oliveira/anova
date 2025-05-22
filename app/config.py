@@ -241,6 +241,7 @@ class Config:
     def base_dir(self) -> str:
         return self._values.get("base_dir", "")
 
+    @property
     def email_noreply_address(self) -> str:
         return self._values.get("email_noreply_address", "")
     
