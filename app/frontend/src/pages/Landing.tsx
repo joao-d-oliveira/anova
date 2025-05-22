@@ -18,7 +18,14 @@ function FeatureCard({ title, description, text }: { title: string, description:
 }
 export default function Landing() {
     return (
-        <Box bg='black' mih='100vh' m={0} p={0}>
+        <Box 
+            style={{ 
+                background: 'radial-gradient(circle at top left, #00313B 0%, #000F11 40%)',
+                minHeight: '100vh',
+                margin: 0,
+                padding: 0
+            }}
+        >
             <Container size='xl' py='48'>
                 <Group justify='space-between' mb='100'>
                     <Image maw={100} src="/imgs/anova_logo_white.png" alt="Anova Logo" pb='xl' />
