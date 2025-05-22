@@ -3,6 +3,7 @@ import { useAnalysis } from "../../mutations";
 import { Container, Loader, Stack, Text, Title } from "@mantine/core";
 import Header from "../../components/dashboard/Header";
 import { useEffect } from "react";
+import { Head } from "vite-react-ssg";
 
 export default function Task() {
     const searchParams = new URLSearchParams(window.location.search);
@@ -17,6 +18,9 @@ export default function Task() {
 
     return <>
         <Container py='xl'>
+            <Head>
+                <title>Anova | Processing</title>
+            </Head>
             <Header />
 
             <Stack justify='center' align='center' gap='xs' py='xl'>

@@ -454,7 +454,6 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         # Step 1: Analyze team PDF
         processing_tasks[task_id]["current_step"] = 0
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[0]
-        
 
         team_wrapper = analyze_team_pdf(team_file_path, is_our_team=True)
 
@@ -470,13 +469,16 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         if team_name:
             team_wrapper.team_details.team_name = team_name
         
+        print("DEBUG - Inserting team into database")
         team_id = insert_team(team_wrapper.team_details, team_analysis)
-        team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
+        print(f"DEBUG - Team ID: {team_id}")
 
+        print("DEBUG - Inserting team stats into database")
         team_stats_id = insert_team_stats(team_id, team_wrapper.team_stats)
+        print(f"DEBUG - Team Stats ID: {team_stats_id}")
 
         # Insert players and their stats
-        print("DEBUG - Inserting players and their stats into database")
+        print("DEBUG - Inserting team players and their stats into database")
         for player in team_wrapper.team_details.players:
             player_id = insert_player(team_id, player)
             print(f"DEBUG - Team Player ID: {player_id}, Name: {player.name}")
@@ -488,7 +490,9 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
                 player_stats_id = insert_player_stats(player_id, player.stats, player_raw_stats_id=raw_stats_id)
                 print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
 
+        print("DEBUG - Inserting team analysis into database")
         team_analysis_id = insert_team_analysis(team_id, team_analysis)
+        print(f"DEBUG - Team Analysis ID: {team_analysis_id}")
 
         # Step 4: Generate team analysis report
         processing_tasks[task_id]["current_step"] = 2
@@ -516,31 +520,32 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         processing_tasks[task_id]["step_description"] = PROCESSING_STEPS[4]
         
         # Insert teams into database
-        print("DEBUG - Inserting teams into database")
+        print("DEBUG - Inserting opponent into database")
         opponent_id = insert_team(opponent_wrapper.team_details, opponent_analysis)
         
-        print(f"DEBUG - Team ID: {team_id}, Opponent ID: {opponent_id}")
+        print(f"DEBUG - Opponent ID: {opponent_id}")
         
         # Insert team stats
-        print("DEBUG - Inserting team stats into database")
+        print("DEBUG - Inserting opponent stats into database")
         opponent_stats_id = insert_team_stats(opponent_id, opponent_wrapper.team_stats)
-        print(f"DEBUG - Team Stats ID: {team_stats_id}, Opponent Stats ID: {opponent_stats_id}")
-        
+        print(f"DEBUG - Opponent Stats ID: {opponent_stats_id}")
+
+        print("DEBUG - Inserting opponent players and their stats into database")
         for player in opponent_wrapper.team_details.players:
             player_id = insert_player(opponent_id, player)
-            print(f"DEBUG - Team Player ID: {player_id}, Name: {player.name}")
+            print(f"DEBUG - Opponent Player ID: {player_id}, Name: {player.name}")
             if player_id:
                 # Insert raw stats first
                 raw_stats_id = insert_player_raw_stats(player_id, player.stats)
-                print(f"DEBUG - Team Player Raw Stats ID: {raw_stats_id}")
+                print(f"DEBUG - Opponent Player Raw Stats ID: {raw_stats_id}")
                 # Then insert processed stats with reference to raw stats
                 player_stats_id = insert_player_stats(player_id, player.stats, player_raw_stats_id=raw_stats_id)
-                print(f"DEBUG - Team Player Stats ID: {player_stats_id}")
+                print(f"DEBUG - Opponent Player Stats ID: {player_stats_id}")
 
         # Insert team analysis
-        print("DEBUG - Inserting team analysis into database")
+        print("DEBUG - Inserting opponent analysis into database")
         opponent_analysis_id = insert_team_analysis(opponent_id, opponent_analysis)
-        print(f"DEBUG - Team Analysis ID: {team_analysis_id}, Opponent Analysis ID: {opponent_analysis_id}")
+        print(f"DEBUG - Opponent Analysis ID: {opponent_analysis_id}")
         
         # Insert game with user ID if available
         print("DEBUG - Inserting game into database")
@@ -549,6 +554,7 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         game_id, game_uuid = insert_game(team_id, opponent_id, user_id)
         print(f"DEBUG - Game ID: {game_id}, Game UUID: {game_uuid}")
 
+        # Set the game id for the team and opponent stats
         update_team_stats_game_id(team_stats_id, game_id)
         update_team_stats_game_id(opponent_stats_id, game_id)
         
@@ -796,10 +802,3 @@ def process_files(task_id: str, file_paths: List[str], user: Dict, team_name: Op
         processing_tasks[task_id]["error"] = str(e)
         print("-" * 40)
         print(f"ERROR: {str(e)}")
-
-if __name__ == "__main__":
-    processing_tasks = {'0d05182f-2088-418f-bd4e-fed202f8a271': {'status': 'processing'}}
-    process_files("0d05182f-2088-418f-bd4e-fed202f8a271", [
-        '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/opponent_ARLINGTON Last 5 games INDIVIDUAL stats.pdf',
-        '/Users/edoardo/programming/anova/app/temp/uploads/0d05182f-2088-418f-bd4e-fed202f8a271/team_SCARSDALE Last 5 games individual stats.pdf'
-    ], {"id": 1}, "Team 1", "Team 2", False)

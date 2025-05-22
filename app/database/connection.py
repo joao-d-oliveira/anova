@@ -1193,7 +1193,7 @@ def get_report_summaries_by_user_id(user_id: int) -> List[ReportSummary]:
     JOIN games g ON r.game_id = g.id
     JOIN teams ht ON g.home_team_id = ht.id
     JOIN teams at ON g.away_team_id = at.id
-    WHERE g.user_id = %s
+    WHERE g.user_id = %s AND r.report_type = 'game_analysis'
     ORDER BY r.created_at DESC
     """
     

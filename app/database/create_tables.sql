@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS game_simulations (
     sim_win_loss_patterns TEXT,
     sim_critical_advantage TEXT,
     sim_keys_to_victory TEXT[],
-    sim_situational_adjustments JSONB,
+    sim_situational_adjustments JSONB, -- TODO: add the python type
     playbook_offensive_plays JSONB,
     playbook_defensive_plays JSONB,
     playbook_special_situations JSONB,

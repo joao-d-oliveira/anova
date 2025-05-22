@@ -32,7 +32,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
 
                 {/* Success Factors */}
                 <Card>
-                    <Card.Section>
+                    <Card.Section mb='0'>
                         Success Factors
                     </Card.Section>
                     <Grid mt="md">
@@ -50,7 +50,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                 {/* Keys to Victory */}
                 <Grid>
                     <Grid.Col span={6}>
-                        <Card>
+                        <Card h='100%'>
                             <Card.Section>
                                 Offensive Keys to Victory
                             </Card.Section>
@@ -58,7 +58,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
-                        <Card>
+                        <Card h='100%'>
                             <Card.Section>
                                 Defensive Keys to Victory
                             </Card.Section>

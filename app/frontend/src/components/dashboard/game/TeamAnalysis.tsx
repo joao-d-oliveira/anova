@@ -2,14 +2,14 @@ import { Stack, Title, Text, Table, Card, Divider, Grid, Group, Space, Paper, Bo
 import { TeamResponse, TeamStatsResponse, ProjectedPlayer, TeamAnalysisResponse } from "../../../generated/client";
 import PillStat from "./PillStat";
 
-export default function TeamAnalysis({ team, teamAnalysis, teamStats, playerStats }: { team: TeamResponse, teamAnalysis: TeamAnalysisResponse, teamStats: TeamStatsResponse, playerStats: ProjectedPlayer[] }) {
+export default function TeamAnalysis({ team, teamAnalysis, teamStats, playerStats, isScouting}: { team: TeamResponse, teamAnalysis: TeamAnalysisResponse, teamStats: TeamStatsResponse, playerStats: ProjectedPlayer[], isScouting: boolean }) {
     return (
         <>
             <Stack>
                 <Title order={3}>{team.name} Report</Title>
                 <Card>
                     <Card.Section>
-                        Playing Style
+                        {isScouting ? "Scouting Overview" : "Team Analysis"}
                     </Card.Section>
                     <Text>{teamAnalysis.playing_style}</Text>
                 </Card>

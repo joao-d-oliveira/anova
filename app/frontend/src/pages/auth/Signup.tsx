@@ -4,6 +4,7 @@ import { useForm } from '@mantine/form';
 import { useRegister } from "../../mutations";
 import { successNotification } from "../../common/notifications";
 import { filledButtonProps, outlineButtonProps } from "../../props/Button";
+import { Head } from "vite-react-ssg";
 
 function RegisterForm({ cbRegistered }: { cbRegistered: (email: string) => void }) {
     const { register } = useRegister();
@@ -116,7 +117,7 @@ function RegisterForm({ cbRegistered }: { cbRegistered: (email: string) => void 
                                 label={
                                     <Group gap="4">
                                         <Text>I accept the</Text>
-                                        <Anchor href="/terms" target="_blank">terms and conditions</Anchor>
+                                        <Anchor href="/terms" target="_blank" td="underline">terms and conditions</Anchor>
                                     </Group>
                                 }
                                 {...form.getInputProps('termsAccepted', { type: 'checkbox' })}
@@ -194,6 +195,9 @@ export default function Signup() {
     const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
     return (
         <Container size="sm" mb="xl">
+            <Head>
+                <title>Anova | Signup</title>
+            </Head>
             {confirmEmail === null ? <RegisterForm cbRegistered={(email) => setConfirmEmail(email)} /> : <ConfirmAccount email={confirmEmail} />}
 
         </Container>

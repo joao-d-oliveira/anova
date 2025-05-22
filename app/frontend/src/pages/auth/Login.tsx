@@ -3,6 +3,7 @@ import { Card, Container, Stack, Title, TextInput, Button, Image, Center } from 
 import { useForm } from '@mantine/form';
 import { useLogin } from "../../mutations";
 import { filledButtonProps, outlineButtonProps } from "../../props/Button";
+import { Head } from "vite-react-ssg";
 
 export default function Login() {
     const { login } = useLogin();
@@ -25,6 +26,9 @@ export default function Login() {
 
     return (
         <Container size="sm">
+            <Head>
+                <title>Anova | Login</title>
+            </Head>
             <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack>
                     <Center my='sm'>

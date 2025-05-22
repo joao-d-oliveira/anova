@@ -75,7 +75,7 @@ export default function Playbook({ gameSimulation, teamAnalysis, opponentAnalysi
                     <Grid.Col span={6}>
                         <Title order={4} mb="md">Inbound Plays</Title>
                         {gameSimulation.playbook_inbound_plays.slice(0, 1).map((play, index) => (
-                            <Card key={`inbound-${index}`}>
+                            <Card key={`inbound-${index}`} h='100%'>
                                 <Card.Section>
                                     {play.play_name}
                                 </Card.Section>
@@ -90,7 +90,7 @@ export default function Playbook({ gameSimulation, teamAnalysis, opponentAnalysi
                     <Grid.Col span={6}>
                         <Title order={4} mb="md">After Timeout / Special Scoring Plays</Title>
                         {gameSimulation.playbook_after_timeout_special_plays.slice(0, 1).map((play, index) => (
-                            <Card key={`ato-${index}`}>
+                            <Card key={`ato-${index}`} h='100%'>
                                 <Card.Section>
                                     {play.play_name}
                                 </Card.Section>

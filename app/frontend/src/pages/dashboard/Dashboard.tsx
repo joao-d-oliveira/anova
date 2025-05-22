@@ -11,10 +11,14 @@ import { errorNotification } from '../../common/notifications';
 import { AuthProvider } from '../../providers/AuthProvider';
 import { filledButtonProps, outlineButtonProps } from '../../props/Button';
 import ReportSummaries from '../../components/dashboard/ReportSummaries';
+import { Head } from 'vite-react-ssg';
 
 const UploadComponent = ({ form, field }: { form: any, field: string }) => {
     return (
         <Stack gap='xs'>
+            <Head>
+                <title>Anova | Upload Stats</title>
+            </Head>
             <Text size='sm' fw={500}>Your Team Stats</Text>
             <Text size='xs' c="dimmed">
                 These can be from the last game, the last 5 or 10 games, or the entire season. Currently, we only accept PDFs.

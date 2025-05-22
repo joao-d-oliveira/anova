@@ -1,17 +1,20 @@
 import { Button, Container, Group, Stack, Title, Text, Space, Tabs, Loader } from "@mantine/core";
 import Header from "../../components/dashboard/Header";
-import { useReport } from "../../mutations";
+import { useDownloadReport, useReport } from "../../mutations";
 import Overview from "../../components/dashboard/game/Overview";
 import TeamAnalysis from "../../components/dashboard/game/TeamAnalysis";
-import { filledButtonProps } from "../../props/Button";
+import { filledButtonProps, outlineButtonProps } from "../../props/Button";
 import GamePlan from "../../components/dashboard/game/GamePlan";
 import Playbook from "../../components/dashboard/game/Playbook";
 import GameSimulation from "../../components/dashboard/game/GameSimulation";
+import { Head } from "vite-react-ssg";
+import { IconDownload, IconRefresh } from "@tabler/icons-react";
 
 export default function GameReport() {
     const { searchParams } = new URL(window.location.href);
     const game_uuid = searchParams.get('game_uuid');
-    const { overallReport, downloadReport } = useReport({ game_uuid: game_uuid as string });
+    const { overallReport } = useReport({ game_uuid: game_uuid as string });
+    const { downloadReport } = useDownloadReport();
 
 
     if (overallReport.isLoading) {
@@ -29,6 +32,9 @@ export default function GameReport() {
     }
 
     return <Container size='xl'>
+        <Head>
+            <title>Anova | Game Report</title>
+        </Head>
         <Header />
         <Group justify='space-between'>
             <Stack>
@@ -36,7 +42,8 @@ export default function GameReport() {
                 <Text>Created: {new Date(overallReport.data?.created_at).toLocaleString()}</Text>
             </Stack>
             <Group>
-                <Button onClick={() => downloadReport.mutate()} {...filledButtonProps}>Download</Button>
+                <Button onClick={() => downloadReport.mutate({ game_uuid: game_uuid as string })} {...filledButtonProps} leftSection={<IconDownload stroke={1.3} size={22} />}>Download</Button>
+                <Button variant="outline" onClick={() => window.location.href = '/dashboard'} {...outlineButtonProps} leftSection={<IconRefresh stroke={1.3} size={22} />}>Start again</Button>
             </Group>
         </Group>
         <Space h='xl' />
@@ -69,12 +76,12 @@ export default function GameReport() {
 
             <Tabs.Panel value="scouting">
                 <Space h='xl' />
-                <TeamAnalysis team={overallReport.data.team} teamAnalysis={overallReport.data.team_analysis} teamStats={overallReport.data.team_stats} playerStats={overallReport.data.team_player_analysis} />
+                <TeamAnalysis isScouting={true} team={overallReport.data.opponent} teamAnalysis={overallReport.data.opponent_analysis} teamStats={overallReport.data.opponent_stats} playerStats={overallReport.data.opponent_player_analysis} />
             </Tabs.Panel>
 
             <Tabs.Panel value="team">
                 <Space h='xl' />
-                <TeamAnalysis team={overallReport.data.opponent} teamAnalysis={overallReport.data.opponent_analysis} teamStats={overallReport.data.opponent_stats} playerStats={overallReport.data.opponent_player_analysis} />
+                <TeamAnalysis isScouting={false} team={overallReport.data.team} teamAnalysis={overallReport.data.team_analysis} teamStats={overallReport.data.team_stats} playerStats={overallReport.data.team_player_analysis} />
             </Tabs.Panel>
 
             <Tabs.Panel value="game_plan">

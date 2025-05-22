@@ -156,8 +156,12 @@ export const useReport = ({ game_uuid }: { game_uuid: string }) => {
         queryFn: async () => await processedFetch<OverallReport>("/report/" + game_uuid),
     });
 
+    return { overallReport };
+};
+
+export const useDownloadReport = () => {
     const downloadReport = useMutation({
-        mutationFn: async () => {
+        mutationFn: async ({game_uuid}: {game_uuid: string}) => {
             const response = await fetch("/api/report/" + game_uuid + "/download");
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -170,8 +174,7 @@ export const useReport = ({ game_uuid }: { game_uuid: string }) => {
             document.body.removeChild(a);
         },
     });
-
-    return { overallReport, downloadReport };
+    return { downloadReport };
 };
 
 export const useReportSummaries = () => {

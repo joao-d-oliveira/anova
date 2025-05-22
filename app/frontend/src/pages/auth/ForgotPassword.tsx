@@ -4,6 +4,7 @@ import { useForm } from '@mantine/form';
 import { useForgotPassword, useResetPassword } from "../../mutations";
 import { successNotification } from "../../common/notifications";
 import { filledButtonProps, outlineButtonProps } from "../../props/Button";
+import { Head } from "vite-react-ssg";
 
 function RequestResetForm({ cbRequested }: { cbRequested: (email: string) => void }) {
     const { forgotPassword } = useForgotPassword();
@@ -100,6 +101,9 @@ function ResetPasswordForm({ email }: { email: string }) {
 
     return (
         <Stack>
+            <Head>
+                <title>Anova | Reset Password</title>
+            </Head>
             <Center my='sm'>
                 <Image maw={100} src="/imgs/anova_logo.png" alt="Anova Logo" />
             </Center>

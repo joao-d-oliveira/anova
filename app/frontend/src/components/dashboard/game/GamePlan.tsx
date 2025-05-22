@@ -6,7 +6,7 @@ export default function GamePlan({ gameSimulation, teamAnalysis, opponentAnalysi
     return (
         <>
             <Stack>
-                <Title order={2}>Game Plan</Title>
+                <Title order={3}>Game Plan</Title>
                 <Card>
                     <Card.Section>
                         Team keys to Victory

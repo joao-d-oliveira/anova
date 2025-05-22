@@ -88,7 +88,7 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
     try:
         analysis = client.messages.create(
             model="claude-3-7-sonnet-20250219",
-            max_tokens=8000,
+            max_tokens=10000,
             temperature=0.0,
             system=f"You are an expert basketball analyst. You are analyzing a PDF containing basketball statistics for a {'team' if is_our_team else 'opponent team'}.",
             messages=[
