@@ -14,3 +14,4 @@ terraform/terraform.tfvars
 **/__pycache__/
 .DS_Store
 /app/tests/app/data/analysis_json/
+.vscode/launch.json
