@@ -7,7 +7,7 @@ from datetime import datetime
 import anthropic
 import logging
 import instructor
-from app.models import GameSimulation, TeamAnalysis, TeamWrapper
+from app.llmmodels import GameSimulation, TeamAnalysis, TeamWrapper
 from app.config import Config
 
 # Set up logging

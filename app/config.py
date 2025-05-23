@@ -115,7 +115,7 @@ class Config:
     def _load_database_config(self):
         """Load database configuration"""
         self._values["db_host"] = os.getenv("DB_HOST", "localhost")
-        self._values["db_port"] = int(os.getenv("DB_PORT", "5432"))
+        self._values["db_port"] = os.getenv("DB_PORT", "5432")
         self._values["db_name"] = os.getenv("DB_NAME", "anova")
         self._values["db_user"] = os.getenv("DB_USER", "anova_user")
         self._values["db_password"] = os.getenv("DB_PASSWORD", "")
@@ -187,7 +187,7 @@ class Config:
     
     @property
     def db_port(self) -> int:
-        return self._values.get("db_port", 5432)
+        return self._values.get("db_port", "5432")
     
     @property
     def db_name(self) -> str:

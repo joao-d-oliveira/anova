@@ -3,10 +3,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-
+from sqlalchemy.orm import Session
 from app.config import Config
-from app.database.connection import GameSimulationResponse, ProjectedPlayer, ReportSummary, TeamAnalysisResponse, TeamResponse, TeamStatsResponse, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_analysis_by_team_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
-from app.models import TeamAnalysis
+from app.database.common import get_db
+from app.database.connection import ReportSummary, get_game_by_uuid, get_game_simulation, get_projected_player_for_game, get_report_by_game_id, get_report_summaries_by_user_id, get_team_analysis_by_team_id, get_team_by_id, get_team_stats_from_game, get_user_by_email
+from app.models import GameSimulationResponse, PlayerProjectionResponse, TeamResponse, TeamStatsResponse, TeamAnalysisResponse
 from app.routers.util import get_verified_user_email
 
 
@@ -18,78 +19,6 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-
-# class PlayerStats(BaseModel):
-#     GP: int
-#     PPG: float
-#     FG_percent: str = Field(alias="FG%")
-#     three_FG_percent: str = Field(alias="3FG%")
-#     FT_percent: str = Field(alias="FT%")
-#     RPG: float
-#     APG: float
-#     SPG: float
-#     BPG: float
-#     TOPG: float
-#     MINS: float
-#     FGM: int
-#     FGA: int
-#     two_FGM: int = Field(alias="2FGM")
-#     two_FGA: int = Field(alias="2FGA")
-#     three_FGM: int = Field(alias="3FGM")
-#     three_FGA: int = Field(alias="3FGA")
-#     FTM: int
-#     FTA: int
-#     AST: int
-#     TO: int
-#     STL: int
-#     BLK: int
-#     REB: int
-#     OREB: int
-#     DREB: int
-
-
-# class Player(BaseModel):
-#     name: str
-#     number: str
-#     position: str
-#     stats: PlayerStats
-#     strengths: List[str]
-#     weaknesses: List[str]
-
-
-# class TeamStats(BaseModel):
-#     PPG: float
-#     FG_percent: str = Field(alias="FG%")
-#     three_FG_percent: str = Field(alias="3FG%")
-#     FT_percent: str = Field(alias="FT%")
-#     REB: float
-#     OREB: float
-#     DREB: float
-#     AST: float
-#     STL: float
-#     BLK: float
-#     TO: float
-#     A_TO: float = Field(alias="A/TO")
-#     two_FG_percent: str = Field(alias="2FG%")
-
-
-# class TeamAnalysis(BaseModel):
-#     team_name: str
-#     record_date: str
-#     team_ranking: str
-#     team_stats: TeamStats
-#     players: List[Player]
-#     team_strengths: List[str]
-#     team_weaknesses: List[str]
-#     key_players: List[str]
-#     playing_style: str
-#     offensive_keys: List[str]
-#     defensive_keys: List[str]
-#     game_factors: List[str]
-#     rotation_plan: str
-#     situational_adjustments: List[str]
-#     game_keys: List[str]
-
 class OverallReport(BaseModel):
     created_at: datetime.datetime
     
@@ -99,55 +28,56 @@ class OverallReport(BaseModel):
     team: TeamResponse
     team_stats: TeamStatsResponse
     team_analysis: TeamAnalysisResponse
-    team_player_analysis: List[ProjectedPlayer]
+    team_player_analysis: List[PlayerProjectionResponse]
 
     opponent: TeamResponse
     opponent_stats: TeamStatsResponse
     opponent_analysis: TeamAnalysisResponse
-    opponent_player_analysis: List[ProjectedPlayer]
-
-
+    opponent_player_analysis: List[PlayerProjectionResponse]
 
 
 @router.get("/summaries", response_model=List[ReportSummary])
-async def get_report_summaries(user_email: str = Depends(get_verified_user_email)):
+async def get_report_summaries(user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
     # Get user ID from email
-    user = get_user_by_email(user_email)
+    user = get_user_by_email(db, user_email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Get report summaries
-    summaries = get_report_summaries_by_user_id(user["id"])
+    summaries = get_report_summaries_by_user_id(db, user.id)
     
     return summaries
 
 @router.get("/{game_uuid}", response_model=OverallReport)
-async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email)):
+async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
     # get game
-    user = get_user_by_email(user_email)
-    game = get_game_by_uuid(game_uuid)
-    if not game or game.user_id != user["id"]:
+    user = get_user_by_email(db, user_email)
+    game = get_game_by_uuid(db, game_uuid)
+    if not game or game.user_id != user.id:
         raise HTTPException(status_code=404, detail="Game not found")
     
     # get game report
-    game_report = get_game_simulation(game.id)
+    game_simulation_db = get_game_simulation(db, game.id)
+    game_simulation = GameSimulationResponse(**game_simulation_db.__dict__)
 
     # get team analysis
-    team = get_team_by_id(game.home_team_id)
-    team_stats = get_team_stats_from_game(game.id, team.id)
-    team_analysis = get_team_analysis_by_team_id(team.id)
-    team_player_analysis = get_projected_player_for_game(game.id, team.id)
+    team_db = get_team_by_id(db, game.home_team_id)
+    team = TeamResponse.model_validate(team_db.__dict__)
+    team_stats = TeamStatsResponse.model_validate(get_team_stats_from_game(db, game.id, team_db.id).__dict__)
+    team_analysis = TeamAnalysisResponse.model_validate(get_team_analysis_by_team_id(db, team_db.id).__dict__)
+    team_player_analysis = [PlayerProjectionResponse.model_validate(player.__dict__) for player in get_projected_player_for_game(db, game.id, team_db.id)]
     
     # get opponent analysis
-    opponent = get_team_by_id(game.away_team_id)
-    opponent_stats = get_team_stats_from_game(game.id, opponent.id)
-    opponent_analysis = get_team_analysis_by_team_id(opponent.id)
-    opponent_player_analysis = get_projected_player_for_game(game.id, opponent.id)
+    opponent_db = get_team_by_id(db, game.away_team_id)
+    opponent = TeamResponse.model_validate(opponent_db.__dict__)
+    opponent_stats = TeamStatsResponse.model_validate(get_team_stats_from_game(db, game.id, opponent_db.id).__dict__)
+    opponent_analysis = TeamAnalysisResponse.model_validate(get_team_analysis_by_team_id(db, opponent_db.id).__dict__)
+    opponent_player_analysis = [PlayerProjectionResponse.model_validate(player.__dict__) for player in get_projected_player_for_game(db, game.id, opponent_db.id)]
 
     return OverallReport(
-        game_uuid=game.uuid,
+        game_uuid=str(game.uuid),
         created_at=game.created_at,
-        game_simulation=game_report,
+        game_simulation=game_simulation,
 
         team=team,
         team_stats=team_stats,
@@ -161,11 +91,11 @@ async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_ver
     )
 
 @router.get("/{game_uuid}/download")
-async def download_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email)):
-    game = get_game_by_uuid(game_uuid)
+async def download_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
+    game = get_game_by_uuid(db, game_uuid)
     if not game or game.user_id != user_email:
         raise HTTPException(status_code=404, detail="Game not found")
     
-    game_report = get_report_by_game_id(game.id, "game_analysis")
+    game_report = get_report_by_game_id(db, game.id, "game_analysis")
 
-    return FileResponse(game_report["file_path"], media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    return FileResponse(game_report.file_path, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")

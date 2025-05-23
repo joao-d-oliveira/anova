@@ -1,51 +1,79 @@
 import datetime
 import json
 import os
-from typing import List, Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from typing import List, Optional, Tuple
+from sqlalchemy.orm import Session, aliased
 import logging
 
 from pydantic import BaseModel
 from app.config import Config
-from app.models import GameSimulation, PlaybookPlay, Player, PlayerStats, SituationalAdjustment, TeamAnalysis, TeamDetails, TeamStats
+from app.llmmodels import (
+    GameSimulation,
+    PlaybookPlay,
+    Player,
+    PlayerStats,
+    SituationalAdjustment,
+    TeamAnalysis,
+    TeamDetails,
+    TeamStats,
+)
+from app.database.models import (
+    UserDB,
+    TeamDB,
+    PlayerDB,
+    GameDB,
+    PlayerRawStatsDB,
+    TeamStatsDB,
+    PlayerStatsDB,
+    TeamAnalysisDB,
+    GameSimulationDB,
+    PlayerProjectionDB,
+    SimulationDetailsDB,
+    ReportDB,
+    OneTimePasswordDB,
+)
+from app.models import PlayerProjectionResponse
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
 def get_db_connection():
     """
     Get a connection to the PostgreSQL database
-    
+
     Returns:
         Connection object
     """
     try:
         config = Config()
-        logger.info(f"Connecting to database: {config.db_host}:{config.db_port}/{config.db_name}")
-        
+        logger.info(
+            f"Connecting to database: {config.db_host}:{config.db_port}/{config.db_name}"
+        )
+
         conn = psycopg2.connect(
             host=config.db_host,
             port=config.db_port,
             database=config.db_name,
             user=config.db_user,
             password=config.db_password,
-            cursor_factory=RealDictCursor
+            cursor_factory=RealDictCursor,
         )
         return conn
     except Exception as e:
         print(f"Error connecting to database: {e}")
         return None
 
+
 def execute_query(query, params=None, fetch=True):
     """
     Execute a SQL query
-    
+
     Args:
         query: SQL query string
         params: Parameters for the query
         fetch: Whether to fetch results
-        
+
     Returns:
         Query results if fetch is True, otherwise None
     """
@@ -53,17 +81,17 @@ def execute_query(query, params=None, fetch=True):
     if not conn:
         print("ERROR: Could not get database connection")
         return None
-    
+
     try:
         with conn.cursor() as cur:
             # print(f"DEBUG - Executing query: {query[:10]}")
             # print(f"DEBUG - With params: {params}")
             cur.execute(query, params)
-            
+
             # Always commit changes, regardless of fetch
             conn.commit()
             print("DEBUG - Changes committed to database")
-            
+
             if fetch:
                 results = cur.fetchall()
                 # print(f"DEBUG - Query results: {results}")
@@ -79,1125 +107,933 @@ def execute_query(query, params=None, fetch=True):
     finally:
         conn.close()
 
-def insert_team(team_details: TeamDetails, team_analysis: TeamAnalysis):
-    """
-    Insert a team into the database
-    
-    Args:
-        team_data: Dictionary containing team data
-        
-    Returns:
-        Team ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO teams (name, record, ranking, record_date)
-    VALUES (%s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    # Parse record_date if it exists, otherwise use current date
-    from datetime import datetime
-    record_date = None
-    if "record_date" in team_analysis:
-        try:
-            record_date = datetime.strptime(team_analysis["record_date"], "%Y-%m-%d").date()
-        except:
-            record_date = datetime.now().date()
-    else:
-        record_date = datetime.now().date()
-    
-    params = (
-        team_details.team_name,
-        team_details.record,
-        team_details.team_ranking,
-        record_date
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
-def insert_team_stats(team_id, stats_data: TeamStats, game_id=None, is_season_average=True):
-    """
-    Insert team statistics into the database
-    
-    Args:
-        team_id: Team ID
-        stats_data: TeamStats object containing team statistics
-        game_id: Game ID (optional)
-        is_season_average: Whether these stats are season averages
-        
-    Returns:
-        Stats ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO team_stats (
-        team_id, game_id, is_season_average, ppg, fg_pct, 
-        fg_made, fg_attempted, fg3_pct, fg3_made, fg3_attempted,
-        ft_pct, ft_made, ft_attempted, rebounds, offensive_rebounds, 
-        defensive_rebounds, assists, steals, blocks, turnovers, assist_to_turnover
-    )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    print("DEBUG - Attempting to insert team stats with exact column names from database schema")
-    
-    # Calculate assist to turnover ratio
-    assist_to_turnover = 0
-    if stats_data.TO > 0:
-        assist_to_turnover = round(stats_data.AST / stats_data.TO, 2)
-    else:
-        assist_to_turnover = stats_data.A_TO
-    
-    params = (
-        team_id,
-        game_id,
-        is_season_average,
-        stats_data.PPG,
-        stats_data.FG_percent,
-        stats_data.FGM, 
-        stats_data.FGA,  
-        stats_data.FG3_percent,
-        stats_data.FGM3,  
-        stats_data.FGA3,
-        stats_data.FT_percent,
-        stats_data.FTM,  
-        stats_data.FTA,  
-        stats_data.REB,
-        stats_data.OREB,
-        stats_data.DREB,
-        stats_data.AST,
-        stats_data.STL,
-        stats_data.BLK,
-        stats_data.TO,
-        assist_to_turnover
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def update_team_stats_game_id(team_stats_id, game_id):
-    query = """
-    UPDATE team_stats
-    SET game_id = %s
-    WHERE id = %s
-    """
-    execute_query(query, (game_id, team_stats_id), fetch=False)
-
-def insert_player(team_id, player_data: Player):
-    """
-    Insert a player into the database
-    
-    Args:
-        team_id: Team ID
-        player_data: Dictionary containing player data
-        
-    Returns:
-        Player ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO players (team_id, name, number, position, height, weight, year, strengths, weaknesses)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        team_id,
-        player_data.name,
-        player_data.number,
-        player_data.position,
-        player_data.height,
-        player_data.weight,
-        player_data.year,
-        player_data.strengths,
-        player_data.weaknesses,
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
-
-def insert_player_stats(player_id, stats_data: PlayerStats, game_id=None, is_season_average=True, player_raw_stats_id=None):
-    """
-    Insert player statistics into the database
-    
-    Args:
-        player_id: Player ID
-        stats_data: Dictionary containing player statistics
-        game_id: Game ID (optional)
-        is_season_average: Whether these stats are season averages
-        player_raw_stats_id: ID of raw stats record (optional)
-        
-    Returns:
-        Stats ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO player_stats (
-        player_id, player_raw_stats_id, game_id, games_played, ppg, fg_pct, fg3_pct, ft_pct,
-        rpg, apg, spg, bpg, topg, minutes, is_season_average
-    )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        player_id,
-        player_raw_stats_id,
-        game_id,
-        stats_data.GP,
-        stats_data.PPG,
-        stats_data.FG_percent,
-        stats_data.FG3_percent,
-        stats_data.FT_percent,
-        stats_data.RPG,
-        stats_data.APG,
-        stats_data.SPG,
-        stats_data.BPG,
-        stats_data.TOPG,
-        stats_data.MINS,
-        is_season_average
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
-
-def insert_team_analysis(team_id, analysis_data: TeamAnalysis):
-    """
-    Insert team analysis into the database
-    
-    Args:
-        team_id: Team ID
-        analysis_data: Dictionary containing team analysis
-        
-    Returns:
-        Analysis ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO team_analysis (
-        team_id, playing_style, strengths, weaknesses, key_players,
-        offensive_keys, defensive_keys, game_factors,
-        rotation_plan, situational_adjustments, game_keys
-    )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        team_id,
-        analysis_data.playing_style,
-        analysis_data.team_strengths,
-        analysis_data.team_weaknesses,
-        analysis_data.key_players,
-        analysis_data.offensive_keys,
-        analysis_data.defensive_keys,
-        analysis_data.game_factors,
-        analysis_data.rotation_plan,
-        analysis_data.situational_adjustments,
-        analysis_data.game_keys
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
-
-def get_or_create_user(cognito_id, email, name, phone_number=None, school=None, role=None):
+def get_or_create_user(
+    db: Session,
+    cognito_id: str,
+    email: str,
+    name: str,
+    phone_number: str = None,
+    school: str = None,
+    role: str = None,
+):
     """
     Get or create a user in the database based on Cognito ID
-    
+
     Args:
+        db: SQLAlchemy database session
         cognito_id: Cognito user ID
         email: User email
         name: User name
         phone_number: User phone number (optional)
         school: User school (optional)
         role: User role (optional)
-        
+
     Returns:
         User ID if successful, None otherwise
     """
     # First try to get the user
-    query = """
-    SELECT id FROM users
-    WHERE cognito_id = %s
-    """
-    
-    result = execute_query(query, (cognito_id,))
-    
-    if result and len(result) > 0:
-        return result[0]["id"]
-    
-    # If user doesn't exist, create it
-    query = """
-    INSERT INTO users (cognito_id, email, name, phone_number, school, role)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        cognito_id,
-        email,
-        name,
-        phone_number,
-        school,
-        role
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
+    user = db.query(UserDB).filter(UserDB.cognito_id == cognito_id).first()
 
-def insert_game(home_team_id, away_team_id, user_id=None, date=None, location=None):
+    if user:
+        return user.id
+
+    # If user doesn't exist, create it
+    new_user = UserDB(
+        cognito_id=cognito_id,
+        email=email,
+        name=name,
+        phone_number=phone_number,
+        school=school,
+        role=role,
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user.id
+
+
+def insert_team(db: Session, team_details: TeamDetails):
+    """
+    Insert a team into the database
+
+    Args:
+        db: SQLAlchemy database session
+        team_details: TeamDetails object containing team data
+        team_analysis: TeamAnalysis object containing team analysis
+
+    Returns:
+        Team ID if successful, None otherwise
+    """
+    # Parse record_date if it exists, otherwise use current date
+    record_date = None
+    try:
+        record_date = datetime.datetime.strptime(
+            team_details.record_date, "%Y-%m-%d"
+        ).date()
+    except:
+        record_date = datetime.datetime.now().date()
+
+    new_team = TeamDB(
+        name=team_details.team_name,
+        record=team_details.record,
+        ranking=team_details.team_ranking,
+        record_date=record_date,
+    )
+
+    db.add(new_team)
+    db.commit()
+    db.refresh(new_team)
+    return new_team.id
+
+
+def insert_team_stats(
+    db: Session,
+    team_id: int,
+    stats_data: TeamStats,
+    game_id: int = None,
+    is_season_average: bool = True,
+):
+    """
+    Insert team statistics into the database
+
+    Args:
+        db: SQLAlchemy database session
+        team_id: Team ID
+        stats_data: TeamStats object containing team statistics
+        game_id: Game ID (optional)
+        is_season_average: Whether these stats are season averages
+
+    Returns:
+        Stats ID if successful, None otherwise
+    """
+    # Calculate assist to turnover ratio
+    assist_to_turnover = 0
+    if stats_data.TO > 0:
+        assist_to_turnover = round(stats_data.AST / stats_data.TO, 2)
+    else:
+        assist_to_turnover = stats_data.A_TO
+
+    new_team_stats = TeamStatsDB(
+        team_id=team_id,
+        game_id=game_id,
+        is_season_average=is_season_average,
+        ppg=stats_data.PPG,
+        fg_pct=stats_data.FG_percent,
+        fg_made=stats_data.FGM,
+        fg_attempted=stats_data.FGA,
+        fg3_pct=stats_data.FG3_percent,
+        fg3_made=stats_data.FGM3,
+        fg3_attempted=stats_data.FGA3,
+        ft_pct=stats_data.FT_percent,
+        ft_made=stats_data.FTM,
+        ft_attempted=stats_data.FTA,
+        rebounds=stats_data.REB,
+        offensive_rebounds=stats_data.OREB,
+        defensive_rebounds=stats_data.DREB,
+        assists=stats_data.AST,
+        steals=stats_data.STL,
+        blocks=stats_data.BLK,
+        turnovers=stats_data.TO,
+        assist_to_turnover=assist_to_turnover,
+    )
+
+    db.add(new_team_stats)
+    db.commit()
+    db.refresh(new_team_stats)
+    return new_team_stats.id
+
+
+def update_team_stats_game_id(db: Session, team_stats_id: int, game_id: int):
+    """
+    Update the game_id for a team stats record
+
+    Args:
+        db: SQLAlchemy database session
+        team_stats_id: Team stats ID
+        game_id: Game ID to set
+    """
+    team_stats = db.query(TeamStatsDB).filter(TeamStatsDB.id == team_stats_id).first()
+    if team_stats:
+        team_stats.game_id = game_id
+        db.commit()
+
+
+def insert_player(db: Session, team_id: int, player_data: Player):
+    """
+    Insert a player into the database
+
+    Args:
+        db: SQLAlchemy database session
+        team_id: Team ID
+        player_data: Player object containing player data
+
+    Returns:
+        Player ID if successful, None otherwise
+    """
+    new_player = PlayerDB(
+        team_id=team_id,
+        name=player_data.name,
+        number=player_data.number,
+        position=player_data.position,
+        height=player_data.height,
+        weight=player_data.weight,
+        year=player_data.year,
+        strengths=player_data.strengths,
+        weaknesses=player_data.weaknesses,
+    )
+
+    db.add(new_player)
+    db.commit()
+    db.refresh(new_player)
+    return new_player.id
+
+
+def insert_player_stats(
+    db: Session,
+    player_id: int,
+    stats_data: PlayerStats,
+    game_id: int = None,
+    is_season_average: bool = True,
+    player_raw_stats_id: int = None,
+):
+    """
+    Insert player statistics into the database
+
+    Args:
+        db: SQLAlchemy database session
+        player_id: Player ID
+        stats_data: PlayerStats object containing player statistics
+        game_id: Game ID (optional)
+        is_season_average: Whether these stats are season averages
+        player_raw_stats_id: ID of raw stats record (optional)
+
+    Returns:
+        Stats ID if successful, None otherwise
+    """
+    new_player_stats = PlayerStatsDB(
+        player_id=player_id,
+        player_raw_stats_id=player_raw_stats_id,
+        game_id=game_id,
+        games_played=stats_data.GP,
+        ppg=stats_data.PPG,
+        fg_pct=stats_data.FG_percent,
+        fg3_pct=stats_data.FG3_percent,
+        ft_pct=stats_data.FT_percent,
+        rpg=stats_data.RPG,
+        apg=stats_data.APG,
+        spg=stats_data.SPG,
+        bpg=stats_data.BPG,
+        topg=stats_data.TOPG,
+        minutes=stats_data.MINS,
+        is_season_average=is_season_average,
+    )
+
+    db.add(new_player_stats)
+    db.commit()
+    db.refresh(new_player_stats)
+    return new_player_stats.id
+
+
+def insert_team_analysis(db: Session, team_id: int, analysis_data: TeamAnalysis):
+    """
+    Insert team analysis into the database
+
+    Args:
+        db: SQLAlchemy database session
+        team_id: Team ID
+        analysis_data: TeamAnalysis object containing team analysis
+
+    Returns:
+        Analysis ID if successful, None otherwise
+    """
+    new_team_analysis = TeamAnalysisDB(
+        team_id=team_id,
+        playing_style=analysis_data.playing_style,
+        strengths=analysis_data.team_strengths,
+        weaknesses=analysis_data.team_weaknesses,
+        key_players=analysis_data.key_players,
+        offensive_keys=analysis_data.offensive_keys,
+        defensive_keys=analysis_data.defensive_keys,
+        game_factors=analysis_data.game_factors,
+        rotation_plan=analysis_data.rotation_plan,
+        situational_adjustments=analysis_data.situational_adjustments,
+        game_keys=analysis_data.game_keys,
+    )
+
+    db.add(new_team_analysis)
+    db.commit()
+    db.refresh(new_team_analysis)
+    return new_team_analysis.id
+
+
+def insert_game(
+    db: Session,
+    home_team_id: int,
+    away_team_id: int,
+    user_id: int = None,
+    date: datetime.date = None,
+    location: str = None,
+):
     """
     Insert a game into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         home_team_id: Home team ID
         away_team_id: Away team ID
         user_id: User ID (optional)
         date: Game date (optional)
         location: Game location (optional)
-        
-    Returns:
-        Game ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO games (home_team_id, away_team_id, user_id, date, location)
-    VALUES (%s, %s, %s, %s, %s)
-    RETURNING id, uuid
-    """
-    
-    params = (
-        home_team_id,
-        away_team_id,
-        user_id,
-        date,
-        location
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"], result[0]["uuid"]
-    return None
 
-def insert_game_simulation(game_id, simulation_data: GameSimulation):
+    Returns:
+        (Game ID, Game UUID) if successful, None otherwise
+    """
+    new_game = GameDB(
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
+        user_id=user_id,
+        date=date,
+        location=location,
+    )
+
+    db.add(new_game)
+    db.commit()
+    db.refresh(new_game)
+    return new_game.id, str(new_game.uuid)
+
+
+def insert_game_simulation(db: Session, game_id: int, simulation_data: GameSimulation):
     """
     Insert game simulation into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         game_id: Game ID
         simulation_data: GameSimulation object containing simulation data
-        
+
     Returns:
         Simulation ID if successful, None otherwise
     """
-    query = """
-    INSERT INTO game_simulations (
-        game_id, win_probability, projected_score,
-        sim_overall_summary, sim_success_factors,
-        sim_key_matchups, sim_win_loss_patterns,
-        sim_critical_advantage, sim_keys_to_victory,
-        sim_situational_adjustments, playbook_offensive_plays,
-        playbook_defensive_plays, playbook_special_situations,
-        playbook_inbound_plays, playbook_after_timeout_special_plays
+    new_simulation = GameSimulationDB(
+        game_id=game_id,
+        win_probability=simulation_data.win_probability,
+        projected_score=simulation_data.projected_score,
+        sim_overall_summary=simulation_data.sim_overall_summary,
+        sim_success_factors=simulation_data.sim_success_factors,
+        sim_key_matchups=simulation_data.sim_key_matchups,
+        sim_win_loss_patterns=simulation_data.sim_win_loss_patterns,
+        sim_critical_advantage=simulation_data.sim_critical_advantage,
+        sim_keys_to_victory=simulation_data.sim_keys_to_victory,
+        sim_situational_adjustments=simulation_data.sim_situational_adjustments,
+        playbook_offensive_plays=simulation_data.playbook_offensive_plays,
+        playbook_defensive_plays=simulation_data.playbook_defensive_plays,
+        playbook_special_situations=simulation_data.playbook_special_situations,
+        playbook_inbound_plays=simulation_data.playbook_inbound_plays,
+        playbook_after_timeout_special_plays=simulation_data.playbook_after_timeout_special_plays,
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
-    RETURNING id
-    """
-    
-    print(f"DEBUG - Simulation data: {simulation_data}")
-    params = (
-        game_id,
-        simulation_data.win_probability,
-        simulation_data.projected_score,
-        simulation_data.sim_overall_summary,
-        simulation_data.sim_success_factors,
-        simulation_data.sim_key_matchups,
-        simulation_data.sim_win_loss_patterns,
-        simulation_data.sim_critical_advantage,
-        simulation_data.sim_keys_to_victory,
-        json.dumps([adj.model_dump(mode="json") for adj in simulation_data.sim_situational_adjustments]),
-        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_offensive_plays]),
-        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_defensive_plays]),
-        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_special_situations]),
-        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_inbound_plays]),
-        json.dumps([play.model_dump(mode="json") for play in simulation_data.playbook_after_timeout_special_plays]),
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def insert_report(game_id, report_type, file_path):
+    db.add(new_simulation)
+    db.commit()
+    db.refresh(new_simulation)
+    return new_simulation.id
+
+
+def insert_report(db: Session, game_id: int, report_type: str, file_path: str):
     """
     Insert a report into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         game_id: Game ID
         report_type: Report type (team_analysis, opponent_analysis, game_analysis)
         file_path: Path to the report file
-        
+
     Returns:
         (Report ID, Report UUID) if successful, None otherwise
     """
-    query = """
-    INSERT INTO reports (game_id, report_type, file_path)
-    VALUES (%s, %s, %s)
-    RETURNING id, uuid
+    new_report = ReportDB(game_id=game_id, report_type=report_type, file_path=file_path)
+
+    db.add(new_report)
+    db.commit()
+    db.refresh(new_report)
+    return new_report.id, new_report.uuid
+
+
+def get_report(db: Session, report_id: int):
     """
-    
-    params = (
-        game_id,
-        report_type,
-        file_path
+    Get a report by ID
+
+    Args:
+        db: SQLAlchemy database session
+        report_id: Report ID
+
+    Returns:
+        Report object if found, None otherwise
+    """
+    return db.query(ReportDB).filter(ReportDB.id == report_id).first()
+
+
+def get_report_by_game_id(db: Session, game_id: int, report_type: str):
+    """
+    Get a report by game ID and type
+
+    Args:
+        db: SQLAlchemy database session
+        game_id: Game ID
+        report_type: Report type
+
+    Returns:
+        Report object if found, None otherwise
+    """
+    return (
+        db.query(ReportDB)
+        .filter(ReportDB.game_id == game_id, ReportDB.report_type == report_type)
+        .first()
     )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"], result[0]["uuid"]
-    return None
 
-def get_report(report_id: int):
-    query = """
-    SELECT id, uuid, game_id, report_type, file_path FROM reports
-    WHERE id = %s
-    """
-    result = execute_query(query, (report_id,))
-    return result[0]
 
-def get_report_by_game_id(game_id: int, report_type: str):
-    query = """
-    SELECT id, uuid, game_id, report_type, file_path FROM reports
-    WHERE game_id = %s AND report_type = %s
-    """
-    result = execute_query(query, (game_id, report_type))
-    return result[0]
-
-def insert_player_raw_stats(player_id, stats_data: PlayerStats, game_id=None):
+def insert_player_raw_stats(
+    db: Session, player_id: int, stats_data: PlayerStats, game_id: int = None
+):
     """
     Insert raw player statistics into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         player_id: Player ID
-        stats_data: Dictionary containing player statistics
+        stats_data: PlayerStats object containing player statistics
         game_id: Game ID (optional)
-        
+
     Returns:
         Raw stats ID if successful, None otherwise
     """
-    query = """
-    INSERT INTO player_raw_stats (
-        player_id, game_id, fgm, fga, fg2m, fg2a, fg3m, fg3a,
-        ftm, fta, total_rebounds, offensive_rebounds, defensive_rebounds,
-        total_assists, total_steals, total_blocks, total_turnovers
+    new_raw_stats = PlayerRawStatsDB(
+        player_id=player_id,
+        game_id=game_id,
+        fgm=stats_data.FGM,
+        fga=stats_data.FGA,
+        fg2m=stats_data.FGM2,
+        fg2a=stats_data.FGA2,
+        fg3m=stats_data.FGM3,
+        fg3a=stats_data.FGA3,
+        ftm=stats_data.FTM,
+        fta=stats_data.FTA,
+        total_rebounds=stats_data.REB,
+        offensive_rebounds=stats_data.OREB,
+        defensive_rebounds=stats_data.DREB,
+        total_assists=stats_data.AST,
+        total_steals=stats_data.STL,
+        total_blocks=stats_data.BLK,
+        total_turnovers=stats_data.TO,
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        player_id,
-        game_id,
-        stats_data.FGM,
-        stats_data.FGA,
-        stats_data.FGM2,
-        stats_data.FGA2,
-        stats_data.FGM3,
-        stats_data.FGA3,
-        stats_data.FTM,
-        stats_data.FTA,
-        stats_data.REB,
-        stats_data.OREB,
-        stats_data.DREB,
-        stats_data.AST,
-        stats_data.STL,
-        stats_data.BLK,
-        stats_data.TO
-    )
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def insert_player_projections(game_simulation_id, player_id, team_id, game_id, projection_data, is_home_team):
+    db.add(new_raw_stats)
+    db.commit()
+    db.refresh(new_raw_stats)
+    return new_raw_stats.id
+
+
+def insert_player_projections(
+    db: Session,
+    game_simulation_id: int,
+    player_id: int,
+    team_id: int,
+    game_id: int,
+    projection_data: dict,
+    is_home_team: bool,
+):
     """
     Insert player projection data into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         game_simulation_id: Game simulation ID
         player_id: Player ID
         team_id: Team ID
         game_id: Game ID
         projection_data: Dictionary containing player projection data
         is_home_team: Whether the player is on the home team
-        
+
     Returns:
         Projection ID if successful, None otherwise
     """
-    query = """
-    INSERT INTO player_projections (
-        game_simulation_id, player_id, team_id, game_id, is_home_team,
-        ppg, rpg, apg, fg_pct, fg3_pct, role
+    new_projection = PlayerProjectionDB(
+        game_simulation_id=game_simulation_id,
+        player_id=player_id,
+        team_id=team_id,
+        game_id=game_id,
+        is_home_team=is_home_team,
+        ppg=float(projection_data.get("ppg", 0)),
+        rpg=float(projection_data.get("rpg", 0)),
+        apg=float(projection_data.get("apg", 0)),
+        fg_pct=projection_data.get("fg", "0%"),
+        fg3_pct=projection_data.get("3p", "0%"),
+        role=projection_data.get("role", ""),
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        game_simulation_id,
-        player_id,
-        team_id,
-        game_id,
-        is_home_team,
-        float(projection_data.get("ppg", 0)),
-        float(projection_data.get("rpg", 0)),
-        float(projection_data.get("apg", 0)),
-        projection_data.get("fg", "0%"),
-        projection_data.get("3p", "0%"),
-        projection_data.get("role", "")
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def insert_simulation_details(game_simulation_id, game_id, home_team_id, away_team_id, simulation_data):
+    db.add(new_projection)
+    db.commit()
+    db.refresh(new_projection)
+    return new_projection.id
+
+
+def insert_simulation_details(
+    db: Session,
+    game_simulation_id: int,
+    game_id: int,
+    home_team_id: int,
+    away_team_id: int,
+    simulation_data: dict,
+):
     """
     Insert detailed simulation results into the database
-    
+
     Args:
+        db: SQLAlchemy database session
         game_simulation_id: Game simulation ID
         game_id: Game ID
         home_team_id: Home team ID
         away_team_id: Away team ID
         simulation_data: Dictionary containing simulation data
-        
+
     Returns:
         Simulation details ID if successful, None otherwise
     """
-    query = """
-    INSERT INTO simulation_details (
-        game_simulation_id, game_id, home_team_id, away_team_id,
-        num_simulations, home_team_wins, away_team_wins,
-        home_team_win_pct, away_team_win_pct,
-        avg_home_score, avg_away_score,
-        closest_game_margin, blowout_game_margin,
-        margin_distribution, avg_effects
+    new_simulation_details = SimulationDetailsDB(
+        game_simulation_id=game_simulation_id,
+        game_id=game_id,
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
+        num_simulations=simulation_data.get("numSimulations", 0),
+        home_team_wins=simulation_data.get("teamAWins", 0),
+        away_team_wins=simulation_data.get("teamBWins", 0),
+        home_team_win_pct=simulation_data.get("teamAWinPct", 0),
+        away_team_win_pct=simulation_data.get("teamBWinPct", 0),
+        avg_home_score=simulation_data.get("avgScoreA", 0),
+        avg_away_score=simulation_data.get("avgScoreB", 0),
+        closest_game_margin=simulation_data.get("closestGame", {}).get("margin", 0),
+        blowout_game_margin=simulation_data.get("blowoutGame", {}).get("margin", 0),
+        margin_distribution=simulation_data.get("marginDistribution", {}),
+        avg_effects=simulation_data.get("avgEffects", {}),
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    # Convert margin_distribution and avg_effects to JSONB
-    import json
-    margin_distribution = json.dumps(simulation_data.get("marginDistribution", {}))
-    avg_effects = json.dumps(simulation_data.get("avgEffects", {}))
-    
-    params = (
-        game_simulation_id,
-        game_id,
-        home_team_id,
-        away_team_id,
-        simulation_data.get("numSimulations", 0),
-        simulation_data.get("teamAWins", 0),
-        simulation_data.get("teamBWins", 0),
-        simulation_data.get("teamAWinPct", 0),
-        simulation_data.get("teamBWinPct", 0),
-        simulation_data.get("avgScoreA", 0),
-        simulation_data.get("avgScoreB", 0),
-        simulation_data.get("closestGame", {}).get("margin", 0),
-        simulation_data.get("blowoutGame", {}).get("margin", 0),
-        margin_distribution,
-        avg_effects
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def find_player_by_name(player_name, team_id):
+    db.add(new_simulation_details)
+    db.commit()
+    db.refresh(new_simulation_details)
+    return new_simulation_details.id
+
+
+def find_player_by_name(db: Session, player_name: str, team_id: int) -> PlayerDB | None:
     """
     Find a player by name in a specific team
-    
+
     Args:
+        db: SQLAlchemy database session
         player_name: Player name
         team_id: Team ID
-        
+
     Returns:
         Player ID if found, None otherwise
     """
-    query = """
-    SELECT id FROM players
-    WHERE team_id = %s AND name LIKE %s
-    LIMIT 1
-    """
-    
     # Remove jersey number if present
-    name_only = player_name.split('#')[0].strip()
-    
-    result = execute_query(query, (team_id, f"%{name_only}%"))
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
+    name_only = player_name.split("#")[0].strip()
 
-def get_recent_analyses(limit=5, user_id=None):
+    player = (
+        db.query(PlayerDB)
+        .filter(PlayerDB.team_id == team_id, PlayerDB.name.ilike(f"%{name_only}%"))
+        .first()
+    )
+
+    return player
+
+
+def get_recent_analyses(db: Session, limit: int = 5, user_id: int = None):
     """
     Get recent analyses from the database
-    
+
     Args:
+        db: SQLAlchemy database session
         limit: Maximum number of analyses to return
         user_id: User ID to filter by (optional)
-        
+
     Returns:
         List of analyses
     """
-    if user_id:
-        query = """
-        SELECT g.id as game_id, 
-               ht.name as home_team, 
-               at.name as away_team, 
-               gs.projected_score, 
-               gs.win_probability,
-               r.id as report_id,
-               r.file_path as report_path,
-               tr1.file_path as team_report_path,
-               tr2.file_path as opponent_report_path,
-               g.created_at
-        FROM games g
-        JOIN teams ht ON g.home_team_id = ht.id
-        JOIN teams at ON g.away_team_id = at.id
-        LEFT JOIN game_simulations gs ON g.id = gs.game_id
-        LEFT JOIN reports r ON g.id = r.game_id AND r.report_type = 'game_analysis'
-        LEFT JOIN reports tr1 ON g.id = tr1.game_id AND tr1.report_type = 'team_analysis'
-        LEFT JOIN reports tr2 ON g.id = tr2.game_id AND tr2.report_type = 'opponent_analysis'
-        WHERE g.user_id = %s
-        ORDER BY g.created_at DESC
-        LIMIT %s
-        """
-        return execute_query(query, (user_id, limit))
-    else:
-        query = """
-        SELECT g.id as game_id, 
-               ht.name as home_team, 
-               at.name as away_team, 
-               gs.projected_score, 
-               gs.win_probability,
-               r.id as report_id,
-               r.file_path as report_path,
-               tr1.file_path as team_report_path,
-               tr2.file_path as opponent_report_path,
-               g.created_at
-        FROM games g
-        JOIN teams ht ON g.home_team_id = ht.id
-        JOIN teams at ON g.away_team_id = at.id
-        LEFT JOIN game_simulations gs ON g.id = gs.game_id
-        LEFT JOIN reports r ON g.id = r.game_id AND r.report_type = 'game_analysis'
-        LEFT JOIN reports tr1 ON g.id = tr1.game_id AND tr1.report_type = 'team_analysis'
-        LEFT JOIN reports tr2 ON g.id = tr2.game_id AND tr2.report_type = 'opponent_analysis'
-        ORDER BY g.created_at DESC
-        LIMIT %s
-        """
-        return execute_query(query, (limit,))
+    query = (
+        db.query(
+            GameDB.id.label("game_id"),
+            TeamDB.name.label("home_team"),
+            TeamDB.name.label("away_team"),
+            GameSimulationDB.projected_score,
+            GameSimulationDB.win_probability,
+            ReportDB.id.label("report_id"),
+            ReportDB.file_path.label("report_path"),
+            ReportDB.file_path.label("team_report_path"),
+            ReportDB.file_path.label("opponent_report_path"),
+            GameDB.created_at,
+        )
+        .join(TeamDB, GameDB.home_team_id == TeamDB.id)
+        .join(TeamDB, GameDB.away_team_id == TeamDB.id)
+        .outerjoin(GameSimulationDB, GameDB.id == GameSimulationDB.game_id)
+        .outerjoin(ReportDB, GameDB.id == ReportDB.game_id)
+    )
 
-def create_user(email: str, password_hash: str, name: str, phone_number: str = None, school: str = None, role: str = None):
+    if user_id:
+        query = query.filter(GameDB.user_id == user_id)
+
+    return query.order_by(GameDB.created_at.desc()).limit(limit).all()
+
+
+def create_user(
+    db: Session,
+    email: str,
+    password_hash: str,
+    name: str,
+    phone_number: str = None,
+    school: str = None,
+    role: str = None,
+):
     """
     Create a new user in the database
-    
+
     Args:
+        db: SQLAlchemy database session
         email: User email
         password_hash: Hashed password
         name: User name
         phone_number: User phone number (optional)
         school: User school (optional)
         role: User role (optional)
-        
+
     Returns:
         User ID if successful, None otherwise
     """
-    query = """
-    INSERT INTO users (email, password_hash, name, phone_number, school, role)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        email,
-        password_hash,
-        name,
-        phone_number,
-        school,
-        role
+    new_user = UserDB(
+        email=email,
+        password_hash=password_hash,
+        name=name,
+        phone_number=phone_number,
+        school=school,
+        role=role,
     )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
 
-def get_user_by_email(email: str):
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user.id
+
+
+def get_user_by_email(db: Session, email: str) -> Optional[UserDB]:
     """
     Get a user by email
-    
+
     Args:
+        db: SQLAlchemy database session
         email: User email
-        
+
     Returns:
         User data if found, None otherwise
     """
-    query = """
-    SELECT id, email, password_hash, name, phone_number, school, role, confirmed
-    FROM users
-    WHERE email = %s
-    """
-    
-    result = execute_query(query, (email,))
-    if result and len(result) > 0:
-        return result[0]
-    return None
+    return db.query(UserDB).filter(UserDB.email == email).first()
 
-def get_public_user_by_email(email: str):
+
+def get_public_user_by_email(db: Session, email: str) -> Optional[UserDB]:
     """
     Get only public user information by email, no id or password hash
-    """
-    query = """
-    SELECT email, name, phone_number, school, role
-    FROM users
-    WHERE email = %s
-    """
-    result = execute_query(query, (email,))
-    if result and len(result) > 0:
-        return result[0]
-    return None
 
-def update_user_password(user_id: int, password_hash: str):
+    Args:
+        db: SQLAlchemy database session
+        email: User email
+
+    Returns:
+        Public user data if found, None otherwise
+    """
+    return (
+        db.query(UserDB)
+        .filter(UserDB.email == email)
+        .first()
+    )
+
+
+def update_user_password(db: Session, user_id: int, password_hash: str):
     """
     Update a user's password
-    
+
     Args:
+        db: SQLAlchemy database session
         user_id: User ID
         password_hash: New hashed password
-        
+
     Returns:
         True if successful, False otherwise
     """
-    query = """
-    UPDATE users
-    SET password_hash = %s, confirmed = TRUE
-    WHERE id = %s
-    """
-    
-    result = execute_query(query, (password_hash, user_id), fetch=False)
-    return result is not None
-
-def confirm_user(user_id: int):
-    """
-    Confirm a user's email
-    """
-    query = """
-    UPDATE users
-    SET confirmed = TRUE
-    WHERE id = %s
-    """
-    result = execute_query(query, (user_id), fetch=False)
-    return result is not None
-
-def create_session(user_id: int, session_token: str, expires_at: str):
-    """
-    Create a new session for a user
-    
-    Args:
-        user_id: User ID
-        session_token: Session token
-        expires_at: Session expiration timestamp
-        
-    Returns:
-        Session ID if successful, None otherwise
-    """
-    query = """
-    INSERT INTO sessions (user_id, session_token, expires_at)
-    VALUES (%s, %s, %s)
-    RETURNING id
-    """
-    
-    params = (
-        user_id,
-        session_token,
-        expires_at
-    )
-    
-    result = execute_query(query, params)
-    if result and len(result) > 0:
-        return result[0]["id"]
-    return None
-
-def get_session(session_token: str):
-    """
-    Get a session by token
-    
-    Args:
-        session_token: Session token
-        
-    Returns:
-        Session data if found and not expired, None otherwise
-    """
-    query = """
-    SELECT s.*, u.email, u.name, u.role
-    FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.session_token = %s AND s.expires_at > NOW()
-    """
-    
-    result = execute_query(query, (session_token,))
-    if result and len(result) > 0:
-        return result[0]
-    return None
-
-def delete_session(session_token: str):
-    """
-    Delete a session
-    
-    Args:
-        session_token: Session token
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    query = """
-    DELETE FROM sessions
-    WHERE session_token = %s
-    """
-    
-    result = execute_query(query, (session_token,), fetch=False)
-    return result is not None
-
-def delete_expired_sessions():
-    """
-    Delete all expired sessions
-    
-    Returns:
-        True if successful, False otherwise
-    """
-    query = """
-    DELETE FROM sessions
-    WHERE expires_at <= NOW()
-    """
-    
-    result = execute_query(query, fetch=False)
-    return result is not None
-
-def create_otp(user_id: int, otp: str):
-    """
-    Create a unique token for a user
-    """
-    query = """
-    INSERT INTO one_time_passwords (user_id, otp)
-    VALUES (%s, %s)
-    """
-    execute_query(query, (user_id, otp))
-
-def verify_otp(user_id: int, otp: str):
-    """
-    Verify a unique token and return associated user_id
-    """
-    query = """
-    SELECT user_id FROM one_time_passwords WHERE user_id = %s AND otp = %s
-    """
-    result = execute_query(query, (user_id, otp))
-    if result and len(result) > 0:
+    user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if user:
+        user.password_hash = password_hash
+        user.confirmed = True
+        db.commit()
         return True
     return False
 
-def delete_otp(user_id: int, otp: str):
 
+def confirm_user(db: Session, user_id: int):
+    """
+    Confirm a user's email
+
+    Args:
+        db: SQLAlchemy database session
+        user_id: User ID
+
+    Returns:
+        True if successful, False otherwise
+    """
+    user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if user:
+        user.confirmed = True
+        db.commit()
+        return True
+    return False
+
+
+def create_otp(db: Session, user_id: int, otp: str):
+    """
+    Create a unique token for a user
+
+    Args:
+        db: SQLAlchemy database session
+        user_id: User ID
+        otp: One-time password
+    """
+    new_otp = OneTimePasswordDB(user_id=user_id, otp=otp)
+
+    db.add(new_otp)
+    db.commit()
+
+
+def verify_otp(db: Session, user_id: int, otp: str):
+    """
+    Verify a unique token and return associated user_id
+
+    Args:
+        db: SQLAlchemy database session
+        user_id: User ID
+        otp: One-time password
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return (
+        db.query(OneTimePasswordDB)
+        .filter(OneTimePasswordDB.user_id == user_id, OneTimePasswordDB.otp == otp)
+        .first()
+        is not None
+    )
+
+
+def delete_otp(db: Session, user_id: int, otp: str):
     """
     Delete a unique token
+
+    Args:
+        db: SQLAlchemy database session
+        user_id: User ID
+        otp: One-time password
     """
-    query = """
-    DELETE FROM one_time_passwords WHERE user_id = %s AND otp = %s
-    """
-    result = execute_query(query, (user_id, otp), fetch=False)
+    db.query(OneTimePasswordDB).filter(
+        OneTimePasswordDB.user_id == user_id, OneTimePasswordDB.otp == otp
+    ).delete()
+    db.commit()
 
 
-class TeamResponse(BaseModel):
-    id: int
-    name: str
-    record: Optional[str]
-    ranking: Optional[str]
-
-def get_team_by_id(team_id: int) -> Optional[TeamResponse]:
+def get_team_by_id(db: Session, team_id: int) -> Optional[TeamDB]:
     """
     Get a team by its ID
-    
+
     Args:
+        db: SQLAlchemy database session
         team_id: Team ID
-        
+
     Returns:
         Team object if found, None otherwise
     """
-    query = """
-    SELECT * FROM teams WHERE id = %s
-    """
-    results = execute_query(query, (team_id,))
-    if results and len(results) > 0:
-        return TeamResponse(**results[0])
-    return None
+    return db.query(TeamDB).filter(TeamDB.id == team_id).first()
 
-class TeamStatsResponse(BaseModel):
-    ppg: Optional[float]
-    fg_pct: Optional[str]
-    fg_made: Optional[float]
-    fg_attempted: Optional[float]
-    fg3_pct: Optional[str]
-    fg3_made: Optional[float]
-    fg3_attempted: Optional[float]
-    ft_pct: Optional[str]
-    ft_made: Optional[float]
-    ft_attempted: Optional[float]
-    rebounds: Optional[float]
-    offensive_rebounds: Optional[float]
-    defensive_rebounds: Optional[float]
-    assists: Optional[float]
-    steals: Optional[float]
-    blocks: Optional[float]
-    turnovers: Optional[float]
-    assist_to_turnover: Optional[float]
-    is_season_average: Optional[bool]
 
-def get_team_stats_from_game(game_id: int, team_id: int) -> Optional[TeamStatsResponse]:
+def get_team_stats_from_game(
+    db: Session, game_id: int, team_id: int
+) -> Optional[TeamStatsDB]:
     """
     Get team statistics for a specific game
-    
+
     Args:
+        db: SQLAlchemy database session
         game_id: Game ID
-        
+        team_id: Team ID
+
     Returns:
-        List of TeamStats objects
+        TeamStatsResponse object if found, None otherwise
     """
-    query = """
-    SELECT * FROM team_stats WHERE game_id = %s AND team_id = %s LIMIT 1
-    """
-    results = execute_query(query, (game_id, team_id))
-    if results:
-        return TeamStatsResponse(**results[0])
-    return None
+    stats = (
+        db.query(TeamStatsDB)
+        .filter(TeamStatsDB.game_id == game_id, TeamStatsDB.team_id == team_id)
+        .first()
+    )
+
+    return stats
 
 
-class TeamAnalysisResponse(BaseModel):
-    playing_style: str
-    strengths: List[str]
-    weaknesses: List[str]
-    key_players: List[str]
-    offensive_keys: List[str]
-    defensive_keys: List[str]
-    game_factors: List[str]
-    rotation_plan: List[str]
-    situational_adjustments: List[str]
-    game_keys: List[str]
-    
-
-def get_team_analysis_by_team_id(team_id: int) -> Optional[TeamAnalysisResponse]:
+def get_team_analysis_by_team_id(db: Session, team_id: int) -> Optional[TeamAnalysisDB]:
     """
     Get team analysis by team ID
-    
+
     Args:
+        db: SQLAlchemy database session
         team_id: Team ID
-        
+
     Returns:
         TeamAnalysisResponse object if found, None otherwise
     """
-    query = """
-    SELECT * FROM team_analysis WHERE team_id = %s ORDER BY created_at DESC LIMIT 1
-    """
-    results = execute_query(query, (team_id,))
-    if results and len(results) > 0:
-        return TeamAnalysisResponse.model_validate(results[0])
-    return None
+    analysis = (
+        db.query(TeamAnalysisDB)
+        .filter(TeamAnalysisDB.team_id == team_id)
+        .order_by(TeamAnalysisDB.created_at.desc())
+        .first()
+    )
+
+    return analysis
 
 
-class Game(BaseModel):
-    id: int
-    uuid: str
-    home_team_id: int
-    away_team_id: int
-    user_id: Optional[int]
-    location: Optional[str]
-    home_score: Optional[int]
-    away_score: Optional[int]
-    status: Optional[str]
-    created_at: Optional[datetime.datetime]
-    updated_at: Optional[datetime.datetime]
-
-def get_game_by_uuid(game_uuid: str) -> Optional[Game]:
+def get_game_by_uuid(db: Session, game_uuid: str) -> Optional[GameDB]:
     """
     Get a game by its UUID
-    
+
     Args:
+        db: SQLAlchemy database session
         game_uuid: Game UUID
-        
+
     Returns:
         Game object if found, None otherwise
     """
-    query = """
-    SELECT * FROM games WHERE uuid = %s
-    """
-    results = execute_query(query, (game_uuid,))
-    if results and len(results) > 0:
-        return Game(**results[0])
-    return None
+    game = db.query(GameDB).filter(GameDB.uuid == game_uuid).first()
+    return game
 
 
-class GameSimulationResponse(BaseModel):
-    id: Optional[int]
-    game_id: int
-    win_probability: Optional[str]
-    projected_score: Optional[str]
-    sim_overall_summary: Optional[str]
-    sim_success_factors: Optional[str]
-    sim_key_matchups: Optional[str]
-    sim_win_loss_patterns: Optional[str]
-    sim_critical_advantage: Optional[str]
-    sim_keys_to_victory: List[str]
-    sim_situational_adjustments: List[SituationalAdjustment]
-    playbook_offensive_plays: List[PlaybookPlay]
-    playbook_defensive_plays: List[PlaybookPlay]
-    playbook_special_situations: List[PlaybookPlay]
-    playbook_inbound_plays: List[PlaybookPlay]
-    playbook_after_timeout_special_plays: List[PlaybookPlay]
-
-
-def get_game_simulation(game_id: int) -> Optional[GameSimulationResponse]:
+def get_game_simulation(db: Session, game_id: int) -> Optional[GameSimulationDB]:
     """
     Get game simulation data for a specific game
-    
+
     Args:
+        db: SQLAlchemy database session
         game_id: Game ID
-        
+
     Returns:
         GameSimulationResponse object if found, None otherwise
     """
-    query = """
-    SELECT * FROM game_simulations WHERE game_id = %s
-    """
-    results = execute_query(query, (game_id,))
-    if results and len(results) > 0:
-        return GameSimulationResponse.model_validate(results[0])
-    return None
+    simulation = (
+        db.query(GameSimulationDB).filter(GameSimulationDB.game_id == game_id).first()
+    )
 
-class ProjectedPlayer(BaseModel):
-    id: int
-    player_id: int
-    team_id: int
-    game_id: int
-    name: str
-    number: int
-    is_home_team: bool
-    ppg: float
-    rpg: float
-    apg: float
-    fg_pct: str
-    fg3_pct: str
-    role: str
-    strengths: List[str]
-    weaknesses: List[str]
-    actual_ppg: Optional[float]
-    actual_rpg: Optional[float]
-    actual_apg: Optional[float]
-    actual_fg_pct: Optional[str]
-    actual_fg3_pct: Optional[str]
-    actual_ft_pct: Optional[str]
-    actual_spg: Optional[float]
-    actual_bpg: Optional[float]
-    actual_topg: Optional[float]
-    actual_minutes: Optional[float]
+    return simulation
 
-def get_projected_player_for_game(game_id: int, team_id: int) -> Optional[List[ProjectedPlayer]]:
+def get_projected_player_for_game(
+    db: Session, game_id: int, team_id: int
+) -> Optional[List[PlayerProjectionResponse]]:
     """
     Get projected player statistics for a specific game and team
-    
+
     Args:
+        db: SQLAlchemy database session
         game_id: Game ID
         team_id: Team ID
-        
+
     Returns:
         List of ProjectedPlayer objects if found, None otherwise
     """
-    query = """
-    SELECT 
-        p.name,
-        p.number,
-        p.strengths,
-        p.weaknesses,
-        pp.*,
-        ps.ppg as actual_ppg,
-        ps.rpg as actual_rpg,
-        ps.apg as actual_apg,
-        ps.fg_pct as actual_fg_pct,
-        ps.fg3_pct as actual_fg3_pct,
-        ps.ft_pct as actual_ft_pct,
-        ps.spg as actual_spg,
-        ps.bpg as actual_bpg,
-        ps.topg as actual_topg,
-        ps.minutes as actual_minutes
-    FROM player_projections pp
-    LEFT JOIN player_stats ps ON pp.player_id = ps.player_id
-    JOIN players p ON pp.player_id = p.id
-    WHERE pp.game_id = %s AND pp.team_id = %s
-    """
-    
-    results = execute_query(query, (game_id, team_id))
-    if results:
-        return [ProjectedPlayer(**result) for result in results]
+    response: List[Tuple[PlayerProjectionDB, PlayerDB, PlayerStatsDB]] = (
+        db.query(PlayerProjectionDB, PlayerDB, PlayerStatsDB)
+        .join(PlayerDB, PlayerProjectionDB.player_id == PlayerDB.id)
+        .outerjoin(
+            PlayerStatsDB, PlayerProjectionDB.player_id == PlayerStatsDB.player_id
+        )
+        .filter(
+            PlayerProjectionDB.game_id == game_id, PlayerProjectionDB.team_id == team_id
+        )
+        .all()
+    )
+
+    if response:
+        return [
+            PlayerProjectionResponse(
+                name=player.name,
+                number=player.number,
+                is_home_team=player_projection.is_home_team,
+                ppg=player_projection.ppg,
+                rpg=player_projection.rpg,
+                apg=player_projection.apg,
+                fg_pct=player_projection.fg_pct,
+                fg3_pct=player_projection.fg3_pct,
+                role=player_projection.role,
+                strengths=player.strengths,
+                weaknesses=player.weaknesses,
+                actual_ppg=player_stats.ppg if player_stats else None,
+                actual_rpg=player_stats.rpg if player_stats else None,
+                actual_apg=player_stats.apg if player_stats else None,
+                actual_fg_pct=player_stats.fg_pct if player_stats else None,
+                actual_fg3_pct=player_stats.fg3_pct if player_stats else None,
+                actual_ft_pct=player_stats.ft_pct if player_stats else None,
+                actual_spg=player_stats.spg if player_stats else None,
+                actual_bpg=player_stats.bpg if player_stats else None,
+                actual_topg=player_stats.topg if player_stats else None,
+                actual_minutes=player_stats.minutes if player_stats else None,
+            )
+            for (player_projection, player, player_stats) in response
+        ]
     return None
 
 
 class ReportSummary(BaseModel):
-    id: int
     game_uuid: str
     home_team_id: int
     away_team_id: int
     home_team: str
     away_team: str
     created_at: datetime.datetime
-    
 
-def get_report_summaries_by_user_id(user_id: int) -> List[ReportSummary]:
+
+def get_report_summaries_by_user_id(db: Session, user_id: int) -> List[ReportSummary]:
     """
     Get report summaries for a user
-    
+
     Args:
+        db: SQLAlchemy database session
         user_id: User ID to get report summaries for
-        
+
     Returns:
         List of ReportSummary objects containing report metadata
     """
-    query = """
-    SELECT 
-        r.id,
-        g.uuid as game_uuid,
-        g.home_team_id,
-        g.away_team_id,
-        ht.name as home_team,
-        at.name as away_team,
-        r.created_at
-    FROM reports r
-    JOIN games g ON r.game_id = g.id
-    JOIN teams ht ON g.home_team_id = ht.id
-    JOIN teams at ON g.away_team_id = at.id
-    WHERE g.user_id = %s AND r.report_type = 'game_analysis'
-    ORDER BY r.created_at DESC
-    """
+    HomeTeam = aliased(TeamDB)
+    AwayTeam = aliased(TeamDB)
     
-    results = execute_query(query, (user_id,))
-    if results:
-        return [ReportSummary(**result) for result in results]
-    return []
+    response: List[Tuple[ReportDB, GameDB, TeamDB, TeamDB]] = (
+        db.query(ReportDB, GameDB, HomeTeam, AwayTeam)
+        .join(GameDB, ReportDB.game_id == GameDB.id)
+        .join(HomeTeam, GameDB.home_team_id == HomeTeam.id)
+        .join(AwayTeam, GameDB.away_team_id == AwayTeam.id)
+        .filter(GameDB.user_id == user_id, ReportDB.report_type == "game_analysis")
+        .order_by(ReportDB.created_at.desc())
+        .all()
+    )
+
+    return [
+        ReportSummary(
+            game_uuid=str(game.uuid),
+            home_team_id=game.home_team_id,
+            away_team_id=game.away_team_id,
+            home_team=home_team.name,
+            away_team=away_team.name,
+            created_at=report.created_at,
+        )
+        for (report, game, home_team, away_team) in response
+    ]

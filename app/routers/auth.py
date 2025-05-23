@@ -5,7 +5,8 @@ import bcrypt
 import datetime
 from pydantic import BaseModel, EmailStr, constr
 from jose import jwt
-
+from sqlalchemy.orm import Session
+from app.database.common import get_db
 from app.routers.util import get_verified_user_email
 from app.services.email import send_reset_password_email, send_verify_email
 from app.config import Config
@@ -13,7 +14,7 @@ from app.config import Config
 
 from app.database.connection import (
     confirm_user, create_user, delete_otp, get_public_user_by_email, get_user_by_email, update_user_password,
-    create_session, delete_session, create_otp, verify_otp
+    create_otp, verify_otp
 )
 
 
@@ -115,10 +116,10 @@ def validate_password(password: str) -> tuple[bool, str]:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login_user(user_data: UserLogin):
+async def login_user(user_data: UserLogin, db: Session = Depends(get_db)):
     """Authenticate a user"""
     # Get user from database
-    user = get_user_by_email(user_data.email)
+    user = get_user_by_email(db, user_data.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -126,7 +127,7 @@ async def login_user(user_data: UserLogin):
         )
     
     # Verify password
-    if not verify_password(user_data.password, user["password_hash"]):
+    if not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -147,29 +148,29 @@ async def login_user(user_data: UserLogin):
     return response
 
 @router.post("/confirm-email")
-async def confirm_email(data: UserConfirm):
+async def confirm_email(data: UserConfirm, db: Session = Depends(get_db)):
     # Get unique token from database
-    user = get_user_by_email(data.email)
+    user = get_user_by_email(db, data.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Error confirming email"
         )
     
-    if not verify_otp(user['id'], data.code):
+    if not verify_otp(db, user.id, data.code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid code"
         )
     
-    if user['confirmed']:
+    if user.confirmed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already confirmed"
         )
     
-    confirm_user(user['id'])
-    delete_otp(user['id'], data.code)
+    confirm_user(db, user.id)
+    delete_otp(db, user.id, data.code)
 
     token = jwt.encode(
         {"sub": data.email, "exp": datetime.datetime.now() + datetime.timedelta(days=7)},
@@ -200,7 +201,7 @@ async def logout_user():
     return response
 
 @router.post("/register", response_model=MessageResponse)
-async def register_user(user_data: UserCreate):
+async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     # Validate passwords match
     if user_data.password != user_data.confirm_password:
@@ -218,7 +219,7 @@ async def register_user(user_data: UserCreate):
         )
     
     # Check if user already exists
-    existing_user = get_user_by_email(user_data.email)
+    existing_user = get_user_by_email(db, user_data.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -235,6 +236,7 @@ async def register_user(user_data: UserCreate):
     
     # Create user
     user_id = create_user(
+        db,
         user_data.email,
         password_hash,
         user_data.name,
@@ -251,7 +253,7 @@ async def register_user(user_data: UserCreate):
     
     # Generate unique token for email confirmation
     unique_token = ''.join(random.choices('0123456789', k=6))
-    create_otp(user_id, unique_token)
+    create_otp(db, user_id, unique_token)
 
     # Send email with unique token
     send_verify_email(user_data.email, unique_token, config)
@@ -259,10 +261,10 @@ async def register_user(user_data: UserCreate):
     return MessageResponse(detail="Successfully registered")
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(payload:ForgotPasswordRequest):
+async def forgot_password(payload:ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Initiate password reset"""
     # Get user from database
-    user = get_user_by_email(payload.email)
+    user = get_user_by_email(db, payload.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -271,7 +273,7 @@ async def forgot_password(payload:ForgotPasswordRequest):
     
     # Generate reset token
     reset_token = ''.join(random.choices('0123456789', k=6))
-    create_otp(user["id"], reset_token)
+    create_otp(db, user.id, reset_token)
     
     # Store reset token in database
     send_reset_password_email(payload.email, reset_token, config)
@@ -282,7 +284,8 @@ async def forgot_password(payload:ForgotPasswordRequest):
 
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(
-    reset_password_request: ResetPasswordRequest
+    reset_password_request: ResetPasswordRequest, 
+    db: Session = Depends(get_db)
 ):
     """Complete password reset"""
     # Validate passwords match
@@ -301,7 +304,7 @@ async def reset_password(
         )
     
     # Get user from database
-    user = get_user_by_email(reset_password_request.email)
+    user = get_user_by_email(db, reset_password_request.email)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -309,7 +312,7 @@ async def reset_password(
         )
     
     # Verify reset token
-    if not verify_otp(user["id"], reset_password_request.otp):
+    if not verify_otp(db, user.id, reset_password_request.otp):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid reset token"
@@ -319,19 +322,19 @@ async def reset_password(
     password_hash = hash_password(reset_password_request.new_password)
     
     # Update password
-    update_user_password(user["id"], password_hash)
+    update_user_password(db, user.id, password_hash)
 
-    delete_otp(user["id"], reset_password_request.otp)
+    delete_otp(db, user.id, reset_password_request.otp)
     
     return MessageResponse(
         detail="Password reset successful! You can now log in with your new password."
     )
 
 @router.get("/me", response_model=UserBase)
-async def get_me(user_email: str = Depends(get_verified_user_email)):
+async def get_me(user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
     """Get the current user"""
-    user = get_public_user_by_email(user_email)
+    user = get_public_user_by_email(db, user_email)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    return UserBase.model_validate(user)
+    return UserBase.model_validate(user.__dict__)
 
