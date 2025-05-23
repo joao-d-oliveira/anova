@@ -1,7 +1,7 @@
 import '@mantine/dropzone/styles.css';
 
-import { Card, Container, FileInput, Group, Stack, TextInput, Title, Text, Button, Space } from "@mantine/core";
-import { useUpload, useUser } from "../../mutations";
+import { Card, Container, FileInput, Group, Stack, TextInput, Title, Text, Button, Space, Checkbox, Divider } from "@mantine/core";
+import { useLatestTeamAnalysis, useUpload, useUser } from "../../mutations";
 import Header from "../../components/dashboard/Header";
 import { useForm } from "@mantine/form";
 import { Dropzone } from '@mantine/dropzone';
@@ -68,6 +68,7 @@ const UploadComponent = ({ form, field }: { form: any, field: string }) => {
 export default function Dashboard() {
     const { user } = useUser();
     const { upload } = useUpload();
+    const { latestHomeTeamAnalysis } = useLatestTeamAnalysis();
 
     const form = useForm({
         initialValues: {
@@ -76,11 +77,12 @@ export default function Dashboard() {
             opponentTeamName: '',
             opponentTeamStats: null,
             useLocalSimulation: true,
+            useLatestTeamAnalysis: false,
         },
         validate: {
-            yourTeamName: (value) => value.length > 0 ? null : 'Team name is required',
+            yourTeamName: (value) => (!form.values.useLatestTeamAnalysis && value.length > 0) ? null : 'Team name is required',
             opponentTeamName: (value) => value.length > 0 ? null : 'Opponent team name is required',
-            yourTeamStats: (value) => value !== null ? null : 'Team stats are required',
+            yourTeamStats: (value) => (!form.values.useLatestTeamAnalysis && value !== null) ? null : 'Team stats are required',
             opponentTeamStats: (value) => value !== null ? null : 'Opponent team stats are required',
         },
     });
@@ -90,12 +92,22 @@ export default function Dashboard() {
     }, [form.values]);
 
     const handleSubmit = (values: any) => {
+        if (values.useLatestTeamAnalysis) {
+            upload.mutate({
+                team_uuid: latestHomeTeamAnalysis.data.team_uuid,
+                team_files: null,
+                opponent_files: null,
+                team_name: latestHomeTeamAnalysis.data.team_name,
+                opponent_name: values.opponentTeamName
+            });
+        } else {
         upload.mutate({
             team_files: form.values.yourTeamStats[0],
             opponent_files: form.values.opponentTeamStats[0],
-            team_name: form.values.yourTeamName,
-            opponent_name: form.values.opponentTeamName
-        });
+                team_name: form.values.yourTeamName,
+                opponent_name: form.values.opponentTeamName
+            });
+        }
     }
 
     useEffect(() => {
@@ -120,6 +132,12 @@ export default function Dashboard() {
                                 <Stack>
                                     <TextInput label="Your Team Name" {...form.getInputProps('yourTeamName')} />
                                     <UploadComponent form={form} field="yourTeamStats" />
+                                    {latestHomeTeamAnalysis.data && (
+                                        <>
+                                            <Divider label='OR'/>
+                                            <Checkbox label={`Re-use latest team analysis for ${latestHomeTeamAnalysis.data.team_name} (${new Date(latestHomeTeamAnalysis.data.analysis_date).toLocaleString()})`} {...form.getInputProps('useLatestTeamAnalysis')} />
+                                        </>
+                                    )}
                                 </Stack>
                             </Card>
                             <Card style={{ flex: 1 }}>

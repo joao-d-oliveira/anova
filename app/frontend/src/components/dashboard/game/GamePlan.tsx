@@ -27,7 +27,7 @@ export default function GamePlan({ gameSimulation, teamAnalysis, opponentAnalysi
                             <Card.Section>
                                 Offensive Keys to Victory
                             </Card.Section>
-                            <StringList maxElements={5} text={teamAnalysis.offensive_keys.join('\n')} />
+                            <StringList maxElements={5} text={teamAnalysis.offensive_keys.join('\\n')} />
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
@@ -35,7 +35,7 @@ export default function GamePlan({ gameSimulation, teamAnalysis, opponentAnalysi
                             <Card.Section>
                                 Defensive Keys to Victory
                             </Card.Section>
-                            <StringList maxElements={5} text={opponentAnalysis.defensive_keys.join('\n')} />
+                            <StringList maxElements={5} text={opponentAnalysis.defensive_keys.join('\\n')} />
                         </Card>
                     </Grid.Col>
                 </Grid>
@@ -46,7 +46,7 @@ export default function GamePlan({ gameSimulation, teamAnalysis, opponentAnalysi
                             <Card.Section>
                                 Situational Adjustments
                             </Card.Section>
-                            <StringList maxElements={5} text={teamAnalysis.situational_adjustments.join('\n')} />
+                            <StringList maxElements={5} text={teamAnalysis.situational_adjustments.join('\\n')} />
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
@@ -54,7 +54,7 @@ export default function GamePlan({ gameSimulation, teamAnalysis, opponentAnalysi
                             <Card.Section>
                                 Rotation Plan
                             </Card.Section>
-                            <StringList maxElements={5} text={teamAnalysis.rotation_plan.join('\n')} />
+                            <StringList maxElements={5} text={teamAnalysis.rotation_plan.join('\\n')} />
                         </Card>
                     </Grid.Col>
                 </Grid>

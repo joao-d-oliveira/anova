@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.routers import auth, report, upload
+from app.routers import auth, report, upload, team
 from app.config import Config
 from app.database.init_db import init_db
 
@@ -88,6 +88,7 @@ os.makedirs(temp_reports_dir, exist_ok=True)
 app.include_router(upload.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(report.router, prefix="/api")
+app.include_router(team.router, prefix="/api")
 
 def get_version_date():
     """

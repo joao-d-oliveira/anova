@@ -93,7 +93,8 @@ async def get_full_game_report(game_uuid: str, user_email: str = Depends(get_ver
 @router.get("/{game_uuid}/download")
 async def download_game_report(game_uuid: str, user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
     game = get_game_by_uuid(db, game_uuid)
-    if not game or game.user_id != user_email:
+    user = get_user_by_email(db, user_email)
+    if not game or game.user_id != user.id:
         raise HTTPException(status_code=404, detail="Game not found")
     
     game_report = get_report_by_game_id(db, game.id, "game_analysis")

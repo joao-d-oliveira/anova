@@ -7,6 +7,8 @@ from datetime import datetime
 import anthropic
 import logging
 import instructor
+from sqlalchemy.orm import Session
+from app.database.models import PlayerDB, PlayerStatsDB, TeamAnalysisDB, TeamDB, TeamStatsDB
 from app.llmmodels import GameSimulation, TeamAnalysis, TeamWrapper
 from app.config import Config
 
@@ -472,7 +474,12 @@ def runSimulations(teamA: Dict[str, Any], teamB: Dict[str, Any], numSimulations:
         "avgEffects": avgEffects
     }
 
-def simulate_game(team_analysis: TeamWrapper, opponent_analysis: TeamWrapper, use_local: bool = False) -> GameSimulation:
+def simulate_game(
+        db: Session,
+        team_id: int,
+        opponent_id: int,
+        use_local: bool = False
+    ) -> GameSimulation:
     """
     Simulate a game between two teams using either local calculations or Claude API
     
@@ -485,19 +492,35 @@ def simulate_game(team_analysis: TeamWrapper, opponent_analysis: TeamWrapper, us
         Dictionary containing simulation results
     """
     if use_local:
-        return simulate_game_locally(team_analysis, opponent_analysis)
+        # todo: re-implement this if needed
+        raise NotImplementedError("LOCAL SIMULATION NOT IMPLEMENTED")
+        # return simulate_game_locally(team_analysis, opponent_analysis)
         
     # Load prompt template
     prompt_path = os.path.join(f"{config.base_dir}/app/prompts", "game_simulation_prompt.txt")
     with open(prompt_path, "r") as file:
         prompt_template = file.read()
     
-    # Create combined analysis for the prompt
-    combined_analysis = {
-        "team": team_analysis.model_dump(mode="json"),
-        "opponent": opponent_analysis.model_dump(mode="json")
-    }
+    team_db = db.query(TeamDB).filter(TeamDB.id == team_id).first()
+    opponent_db = db.query(TeamDB).filter(TeamDB.id == opponent_id).first()
     
+    team_analysis = db.query(TeamAnalysisDB).filter(TeamAnalysisDB.team_id == team_id).first()
+    opponent_analysis = db.query(TeamAnalysisDB).filter(TeamAnalysisDB.team_id == opponent_id).first()
+    
+    team_stats = db.query(TeamStatsDB).filter(TeamStatsDB.team_id == team_id).first()
+    opponent_stats = db.query(TeamStatsDB).filter(TeamStatsDB.team_id == opponent_id).first()
+
+    team_players = db.query(PlayerDB).filter(PlayerDB.team_id == team_id).all()
+    opponent_players = db.query(PlayerDB).filter(PlayerDB.team_id == opponent_id).all()
+    
+    team_player_ids = [player.id for player in team_players]
+    opponent_player_ids = [player.id for player in opponent_players]
+    
+    team_player_stats = db.query(PlayerStatsDB).filter(PlayerStatsDB.player_id.in_(team_player_ids)).all()
+    opponent_player_stats = db.query(PlayerStatsDB).filter(PlayerStatsDB.player_id.in_(opponent_player_ids)).all()
+    
+    combined_analysis = _create_combined_analysis(team_db, opponent_db, team_analysis, opponent_analysis, team_stats, opponent_stats, team_players, opponent_players, team_player_stats, opponent_player_stats)
+
     # Create message
     message = client.messages.create(
         model="claude-3-7-sonnet-20250219",
@@ -520,19 +543,89 @@ def simulate_game(team_analysis: TeamWrapper, opponent_analysis: TeamWrapper, us
     
     return message
 
-    # Extract and parse JSON from response
-    try:
-        # Look for JSON in the response
-        response_text = message.content[0].text
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
+
+def _create_combined_analysis(team_db, opponent_db, team_analysis, opponent_analysis, 
+                            team_stats, opponent_stats, team_players, opponent_players,
+                            team_player_stats, opponent_player_stats):
+    """Create a combined analysis object with all team data"""
+    
+    def _clean_player_data(player, stats):
+        """Helper function to clean player data and combine with stats"""
+        player_dict = {
+            "name": player.name,
+            "number": player.number,
+            "position": player.position,
+            "height": player.height,
+            "weight": player.weight,
+            "year": player.year,
+            "strengths": player.strengths,
+            "weaknesses": player.weaknesses
+        }
         
-        if json_start >= 0 and json_end > json_start:
-            json_str = response_text[json_start:json_end]
-            return json.loads(json_str)
-        else:
-            # If no JSON found, return empty dict
-            return {}
-    except Exception as e:
-        print(f"Error parsing JSON from Claude response: {e}")
-        return {}
+        if stats:
+            player_dict["stats"] = {
+                "ppg": float(stats.ppg) if stats.ppg else None,
+                "fg_pct": stats.fg_pct,
+                "fg3_pct": stats.fg3_pct,
+                "ft_pct": stats.ft_pct,
+                "rpg": float(stats.rpg) if stats.rpg else None,
+                "apg": float(stats.apg) if stats.apg else None,
+                "spg": float(stats.spg) if stats.spg else None,
+                "bpg": float(stats.bpg) if stats.bpg else None,
+                "topg": float(stats.topg) if stats.topg else None,
+                "minutes": float(stats.minutes) if stats.minutes else None
+            }
+        
+        return player_dict
+
+    def _clean_team_data(team, analysis, stats, players, player_stats):
+        """Helper function to clean team data"""
+        # Create player stats lookup dictionary
+        player_stats_dict = {ps.player_id: ps for ps in player_stats}
+        
+        return {
+            "name": team.name,
+            "record": team.record,
+            "ranking": team.ranking,
+            "analysis": {
+                "playing_style": analysis.playing_style if analysis else None,
+                "strengths": analysis.strengths if analysis else [],
+                "weaknesses": analysis.weaknesses if analysis else [],
+                "key_players": analysis.key_players if analysis else [],
+                "offensive_keys": analysis.offensive_keys if analysis else [],
+                "defensive_keys": analysis.defensive_keys if analysis else [],
+                "game_factors": analysis.game_factors if analysis else [],
+                "rotation_plan": analysis.rotation_plan if analysis else [],
+                "situational_adjustments": analysis.situational_adjustments if analysis else [],
+                "game_keys": analysis.game_keys if analysis else []
+            },
+            "stats": {
+                "ppg": float(stats.ppg) if stats and stats.ppg else None,
+                "fg_pct": stats.fg_pct if stats else None,
+                "fg_made": float(stats.fg_made) if stats and stats.fg_made else None,
+                "fg_attempted": float(stats.fg_attempted) if stats and stats.fg_attempted else None,
+                "fg3_pct": stats.fg3_pct if stats else None,
+                "fg3_made": float(stats.fg3_made) if stats and stats.fg3_made else None,
+                "fg3_attempted": float(stats.fg3_attempted) if stats and stats.fg3_attempted else None,
+                "ft_pct": stats.ft_pct if stats else None,
+                "ft_made": float(stats.ft_made) if stats and stats.ft_made else None,
+                "ft_attempted": float(stats.ft_attempted) if stats and stats.ft_attempted else None,
+                "rebounds": float(stats.rebounds) if stats and stats.rebounds else None,
+                "offensive_rebounds": float(stats.offensive_rebounds) if stats and stats.offensive_rebounds else None,
+                "defensive_rebounds": float(stats.defensive_rebounds) if stats and stats.defensive_rebounds else None,
+                "assists": float(stats.assists) if stats and stats.assists else None,
+                "steals": float(stats.steals) if stats and stats.steals else None,
+                "blocks": float(stats.blocks) if stats and stats.blocks else None,
+                "turnovers": float(stats.turnovers) if stats and stats.turnovers else None,
+                "assist_to_turnover": float(stats.assist_to_turnover) if stats and stats.assist_to_turnover else None
+            },
+            "players": [
+                _clean_player_data(player, player_stats_dict.get(player.id))
+                for player in players
+            ]
+        }
+
+    return {
+        "team": _clean_team_data(team_db, team_analysis, team_stats, team_players, team_player_stats),
+        "opponent": _clean_team_data(opponent_db, opponent_analysis, opponent_stats, opponent_players, opponent_player_stats)
+    }

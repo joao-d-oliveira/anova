@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Apply migrations
+echo "Applying migrations..."
+exec python -m alembic upgrade head
+
 # Print environment information for debugging
 echo "Starting application..."
 echo "Current working directory: $(pwd)"
@@ -23,10 +27,6 @@ if [ -d "/app/static" ]; then
 else
     echo "WARNING: Static directory not found at app/static"
 fi
-
-# Apply migrations
-echo "Applying migrations..."
-exec python -m alembic upgrade head
 
 # Start the application with increased logging
 echo "Starting uvicorn server..."

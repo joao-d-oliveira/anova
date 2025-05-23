@@ -1,5 +1,5 @@
 import { Stack, Title, Text, Card, Divider, Grid, Group, Space, Table } from "@mantine/core";
-import { TeamAnalysisResponse, GameSimulationResponse, ProjectedPlayer, TeamResponse } from "../../../generated/client";
+import { TeamAnalysisResponse, GameSimulationResponse, TeamResponse, PlayerProjectionResponse } from "../../../generated/client";
 import StringList from "../StringList";
 import PlayDetails from "./PlayDetails";
 import SituationalDetails from "./SituationalDetails";
@@ -10,8 +10,8 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
     opponent: TeamResponse,
     teamAnalysis: TeamAnalysisResponse,
     opponentAnalysis: TeamAnalysisResponse,
-    teamPlayerAnalysis: ProjectedPlayer[],
-    opponentPlayerAnalysis: ProjectedPlayer[]
+    teamPlayerAnalysis: PlayerProjectionResponse[],
+    opponentPlayerAnalysis: PlayerProjectionResponse[]
 }) {
     return (
         <>
@@ -54,7 +54,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                             <Card.Section>
                                 Offensive Keys to Victory
                             </Card.Section>
-                            <StringList maxElements={5} text={teamAnalysis.offensive_keys.join('\n')} />
+                            <StringList maxElements={5} text={teamAnalysis.offensive_keys.join('\\n')} />
                         </Card>
                     </Grid.Col>
                     <Grid.Col span={6}>
@@ -62,7 +62,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                             <Card.Section>
                                 Defensive Keys to Victory
                             </Card.Section>
-                            <StringList maxElements={5} text={opponentAnalysis.defensive_keys.join('\n')} />
+                            <StringList maxElements={5} text={opponentAnalysis.defensive_keys.join('\\n')} />
                         </Card>
                     </Grid.Col>
                 </Grid>
@@ -89,7 +89,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                         </Table.Thead>
                         <Table.Tbody>
                             {teamPlayerAnalysis.map((player) => (
-                                <Table.Tr key={`team-${player.id}`}>
+                                <Table.Tr key={`team-${player.name}`}>
                                     <Table.Td>{player.name}</Table.Td>
                                     <Table.Td>{player.ppg}</Table.Td>
                                     <Table.Td>{player.rpg}</Table.Td>
@@ -118,7 +118,7 @@ export default function GameSimulation({ gameSimulation, team, opponent, teamAna
                         </Table.Thead>
                         <Table.Tbody>
                             {opponentPlayerAnalysis.map((player) => (
-                                <Table.Tr key={`opponent-${player.id}`}>
+                                <Table.Tr key={`opponent-${player.name}`}>
                                     <Table.Td>{player.name}</Table.Td>
                                     <Table.Td>{player.ppg}</Table.Td>
                                     <Table.Td>{player.rpg}</Table.Td>

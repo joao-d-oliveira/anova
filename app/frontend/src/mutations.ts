@@ -1,5 +1,5 @@
 import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
-import { BodyUploadFilesApiTaskUploadPost, OverallReport, ProcessingTask, ReportSummary, ResetPasswordRequest, UploadProcessResponse, UserBase, UserConfirm, UserCreate, UserLogin } from './generated/client';
+import { BodyUploadFilesApiTaskUploadPost, LatestTeamAnalysis, OverallReport, ProcessingTaskResponse, ReportSummary, ResetPasswordRequest, UploadProcessResponse, UserBase, UserConfirm, UserCreate, UserLogin } from './generated/client';
 import { errorNotification } from './common/notifications';
 import { useState } from 'react';
 
@@ -130,11 +130,11 @@ export const useUpload = () => {
 };
 
 export const useAnalysis = ({ task_id }: { task_id: string }) => {
-    const [analysis, setAnalysis] = useState<ProcessingTask | null>(null);
+    const [analysis, setAnalysis] = useState<ProcessingTaskResponse | null>(null);
     const status = useQuery({
         queryKey: ["analysis", task_id],
         queryFn: async () => {
-            const response = await processedFetch<ProcessingTask>("/task/status/" + task_id);
+            const response = await processedFetch<ProcessingTaskResponse>("/task/status/" + task_id);
             setAnalysis(response);
             return response;
         },
@@ -163,6 +163,11 @@ export const useDownloadReport = () => {
     const downloadReport = useMutation({
         mutationFn: async ({game_uuid}: {game_uuid: string}) => {
             const response = await fetch("/api/report/" + game_uuid + "/download");
+            if (!response.ok) {
+                errorNotification("Failed to download report");
+                throw new Error("Failed to download report");
+            }
+
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -219,4 +224,13 @@ export const useResetPassword = () => {
         },
     });
     return { resetPassword };
+};
+
+export const useLatestTeamAnalysis = () => {
+    const latestHomeTeamAnalysis = useQuery({
+        queryKey: ["latest-home-team-analysis"],
+        queryFn: async () => await processedFetch<LatestTeamAnalysis>("/team/latest-home-team-analysis"),
+        staleTime: 1000 * 60 * 5, // Refetch every 5 minutes
+    });
+    return { latestHomeTeamAnalysis };
 };

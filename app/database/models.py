@@ -124,6 +124,7 @@ class TeamDB(Base):
     __tablename__ = 'teams'
     
     id = Column(Integer, primary_key=True)
+    uuid = Column(UUID, unique=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
     record = Column(String(20))
     ranking = Column(String(50))
@@ -407,3 +408,20 @@ class OneTimePasswordDB(Base):
     
     # Relationships
     user = relationship("UserDB", back_populates="otps")
+
+class ProcessingTaskDB(Base):
+    __tablename__ = 'processing_tasks'
+    
+    id = Column(Integer, primary_key=True)
+    task_uuid = Column(UUID, unique=True, nullable=False, default=uuid.uuid4)
+    
+    game_id = Column(Integer, ForeignKey('games.id'), nullable=True)
+    team_id = Column(Integer, ForeignKey('teams.id'), nullable=True)
+    
+    status = Column(String(50), nullable=False)
+    team_file_path = Column(String(255), nullable=True)
+    opponent_file_path = Column(String(255), nullable=False)
+    step = Column(Integer, nullable=False, default=0)
+    total_steps = Column(Integer, nullable=False, default=8)
+    created_at = Column(UTCDateTime, server_default=SERVER_TS)
+    updated_at = Column(UTCDateTime, server_default=SERVER_TS, server_onupdate=SERVER_TS)
