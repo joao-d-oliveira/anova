@@ -4,6 +4,8 @@ import traceback
 import uuid
 import shutil
 import json
+import concurrent.futures
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -28,7 +30,17 @@ from sqlalchemy.orm import Session
 
 from app.config import Config
 from app.database.common import database_context, get_db
-from app.database.models import GameDB, ProcessingTaskDB, ReportDB, TeamAnalysisDB, TeamDB, TeamStatsDB, UserDB, PlayerDB, PlayerStatsDB
+from app.database.models import (
+    GameDB,
+    ProcessingTaskDB,
+    ReportDB,
+    TeamAnalysisDB,
+    TeamDB,
+    TeamStatsDB,
+    UserDB,
+    PlayerDB,
+    PlayerStatsDB,
+)
 from app.llmmodels import GameSimulation, TeamWrapper
 from app.routers.util import get_verified_user_email
 from app.services.anthropic_api import analyze_team_pdf, simulate_game
@@ -71,6 +83,7 @@ PROCESSING_STEPS = [
     "Generating team analysis report",
     "Simulating game",
     "Generating final report",
+    "Your report is ready",
 ]
 
 
@@ -105,10 +118,10 @@ async def get_analyses(request: Request, user_email=Depends(get_verified_user_em
 async def upload_files(
     background_tasks: BackgroundTasks,
     request: Request,
-    team_uuid: Optional[str] = Form(None),
-    team_files: Optional[UploadFile] = File(None),
-    team_name: Optional[str] = Form(None),
-    opponent_files: UploadFile = File(...),
+    team_uuid: Optional[str] = Form(None, description="UUID of the team to analyze"),
+    team_files: Optional[UploadFile] = File(None, description="PDF file of the team to analyze"),
+    team_name: Optional[str] = Form(None, description="Name of the team to analyze"),
+    opponent_files: UploadFile = File(..., description="PDF file of the opponent to analyze"),
     opponent_name: Optional[str] = Form(...),
     use_local_simulation: Optional[bool] = Form(False),
     user_email: str = Depends(get_verified_user_email),
@@ -209,7 +222,9 @@ def get_status(task_id: str, db: Session = Depends(get_db)):
     return ProcessingTaskResponse(
         task_uuid=task_id,
         status=processing_task_db.status,
-        step_description=PROCESSING_STEPS[processing_task_db.step] if processing_task_db.step < len(PROCESSING_STEPS) else "Completed",
+        step_description=PROCESSING_STEPS[processing_task_db.step]
+        if processing_task_db.step < len(PROCESSING_STEPS)
+        else "Completed",
         current_step=processing_task_db.step,
         total_steps=processing_task_db.total_steps,
         game_uuid=game_uuid,
@@ -377,7 +392,7 @@ async def download_by_path(path: str):
     )
 
 
-def generate_team_analysis_report(db, team_analysis_id: int) -> str:
+def generate_team_analysis_report(db, team_id: int) -> str:
     """
     Generate a DOCX report for team analysis
 
@@ -388,12 +403,28 @@ def generate_team_analysis_report(db, team_analysis_id: int) -> str:
     Returns:
         Path to the generated report
     """
-    # Query the database for team analysis data
-    team_analysis = db.query(TeamDB, TeamAnalysisDB, TeamStatsDB).filter(TeamAnalysisDB.id == team_analysis_id).first()
-    if not team_analysis:
-        raise ValueError(f"No team analysis found with ID {team_analysis_id}")
+    # Get the team
+    team = db.query(TeamDB).filter(TeamDB.id == team_id).first()
+    if not team:
+        raise ValueError(f"No team found with ID {team_id}")
+
+    # Get the latest team analysis and stats
+    team_analysis = (
+        db.query(TeamAnalysisDB)
+        .filter(TeamAnalysisDB.team_id == team_id)
+        .order_by(TeamAnalysisDB.id.desc())
+        .first()
+    )
     
-    team, analysis, stats = team_analysis
+    team_stats = (
+        db.query(TeamStatsDB)
+        .filter(TeamStatsDB.team_id == team_id)
+        .order_by(TeamStatsDB.id.desc())
+        .first()
+    )
+
+    if not team_analysis or not team_stats:
+        raise ValueError(f"No analysis or stats found for team with ID {team_id}")
 
     # Create a new document
     doc = Document()
@@ -421,18 +452,18 @@ def generate_team_analysis_report(db, team_analysis_id: int) -> str:
 
     # Add stats rows
     stats_dict = {
-        "Points Per Game": stats.ppg,
-        "Field Goal %": stats.fg_pct,
-        "3-Point %": stats.fg3_pct,
-        "Free Throw %": stats.ft_pct,
-        "Rebounds": stats.rebounds,
-        "Offensive Rebounds": stats.offensive_rebounds,
-        "Defensive Rebounds": stats.defensive_rebounds,
-        "Assists": stats.assists,
-        "Steals": stats.steals,
-        "Blocks": stats.blocks,
-        "Turnovers": stats.turnovers,
-        "Assist/Turnover": stats.assist_to_turnover
+        "Points Per Game": team_stats.ppg,
+        "Field Goal %": team_stats.fg_pct,
+        "3-Point %": team_stats.fg3_pct,
+        "Free Throw %": team_stats.ft_pct,
+        "Rebounds": team_stats.rebounds,
+        "Offensive Rebounds": team_stats.offensive_rebounds,
+        "Defensive Rebounds": team_stats.defensive_rebounds,
+        "Assists": team_stats.assists,
+        "Steals": team_stats.steals,
+        "Blocks": team_stats.blocks,
+        "Turnovers": team_stats.turnovers,
+        "Assist/Turnover": team_stats.assist_to_turnover,
     }
 
     for stat, value in stats_dict.items():
@@ -442,67 +473,71 @@ def generate_team_analysis_report(db, team_analysis_id: int) -> str:
 
     # Add team strengths section
     doc.add_heading("Team Strengths", 1)
-    for strength in analysis.strengths:
+    for strength in team_analysis.strengths:
         doc.add_paragraph(f"• {strength}", style="List Bullet")
 
     # Add team weaknesses section
     doc.add_heading("Team Weaknesses", 1)
-    for weakness in analysis.weaknesses:
+    for weakness in team_analysis.weaknesses:
         doc.add_paragraph(f"• {weakness}", style="List Bullet")
 
     # Add key players section
     doc.add_heading("Key Players", 1)
-    for player in analysis.key_players:
+    for player in team_analysis.key_players:
         doc.add_paragraph(f"• {player}", style="List Bullet")
 
     # Add playing style section
-    if analysis.playing_style:
+    if team_analysis.playing_style:
         doc.add_heading("Playing Style", 1)
-        doc.add_paragraph(analysis.playing_style)
+        doc.add_paragraph(team_analysis.playing_style)
 
     # Add offensive keys section
     doc.add_heading("Offensive Keys", 1)
-    for key in analysis.offensive_keys:
+    for key in team_analysis.offensive_keys:
         doc.add_paragraph(f"• {key}", style="List Bullet")
 
     # Add defensive keys section
     doc.add_heading("Defensive Keys", 1)
-    for key in analysis.defensive_keys:
+    for key in team_analysis.defensive_keys:
         doc.add_paragraph(f"• {key}", style="List Bullet")
 
     # Add game factors section
     doc.add_heading("Game Factors", 1)
-    for factor in analysis.game_factors:
+    for factor in team_analysis.game_factors:
         doc.add_paragraph(f"• {factor}", style="List Bullet")
 
     # Add rotation plan section
-    if analysis.rotation_plan:
+    if team_analysis.rotation_plan:
         doc.add_heading("Rotation Plan", 1)
-        for plan in analysis.rotation_plan:
+        for plan in team_analysis.rotation_plan:
             doc.add_paragraph(f"• {plan}", style="List Bullet")
 
     # Add situational adjustments section
     doc.add_heading("Situational Adjustments", 1)
-    for adjustment in analysis.situational_adjustments:
+    for adjustment in team_analysis.situational_adjustments:
         doc.add_paragraph(f"• {adjustment}", style="List Bullet")
 
     # Add game keys section
     doc.add_heading("Game Keys", 1)
-    for key in analysis.game_keys:
+    for key in team_analysis.game_keys:
         doc.add_paragraph(f"• {key}", style="List Bullet")
 
     # Add player details section
     doc.add_heading("Player Details", 1)
     players = db.query(PlayerDB).filter(PlayerDB.team_id == team.id).limit(5).all()
-    
+
     for player in players:
         doc.add_heading(f"{player.name} #{player.number}", 2)
 
         # Add player stats
-        player_stats = db.query(PlayerStatsDB).filter(
-            PlayerStatsDB.player_id == player.id,
-            PlayerStatsDB.is_season_average.is_(True)
-        ).first()
+        player_stats = (
+            db.query(PlayerStatsDB)
+            .filter(
+                PlayerStatsDB.player_id == player.id,
+                PlayerStatsDB.is_season_average.is_(True),
+            )
+            .first()
+        )
 
         if player_stats:
             player_stats_table = doc.add_table(rows=1, cols=2)
@@ -525,7 +560,7 @@ def generate_team_analysis_report(db, team_analysis_id: int) -> str:
                 "Steals": player_stats.spg,
                 "Blocks": player_stats.bpg,
                 "Turnovers": player_stats.topg,
-                "Minutes": player_stats.minutes
+                "Minutes": player_stats.minutes,
             }
 
             for stat, value in stats_dict.items():
@@ -571,11 +606,12 @@ def run_team_analysis(
         db.execute(query)
         db.commit()
 
-        team_wrapper = analyze_team_pdf(file_path, is_our_team=is_home_team)
+        print(f"DEBUG - Starting team analysis for {team_name} with file path {file_path}")
+        # team_wrapper = analyze_team_pdf(file_path, is_our_team=is_home_team)
         # with open("/Users/edoardo/programming/anova/team2_wrapper.json", "w+") as f:
         #     json.dump(opponent_wrapper.model_dump(mode="json"), f)
-        # with open(f"/Users/edoardo/programming/anova/team{1 if is_home_team else 2}_wrapper.json", "r") as f:
-        #     team_wrapper = TeamWrapper.model_validate(json.load(f))
+        with open(f"/Users/edoardo/programming/anova/team{1 if is_home_team else 2}_wrapper.json", "r") as f:
+            team_wrapper = TeamWrapper.model_validate(json.load(f))
 
         team_label = "home" if is_home_team else "away"
         team_analysis = team_wrapper.team_analysis
@@ -598,14 +634,6 @@ def run_team_analysis(
         team_id = insert_team(db, team_wrapper.team_details)
 
         print(f"DEBUG - {team_label} team ID: {team_id}")
-
-        query = (
-            sqlalchemy.update(ProcessingTaskDB)
-            .where(ProcessingTaskDB.task_uuid == task_uuid)
-            .values(step=2, status="processing")
-        )
-        db.execute(query)
-        db.commit()
 
         # Insert team stats
         print(f"DEBUG - Inserting {team_label} stats into database")
@@ -657,8 +685,22 @@ def process_files(
 
         try:
             # Find team and opponent file paths
+            team_id = processing_task_db.team_id
+            team_uuid = str(db.query(TeamDB.uuid).where(TeamDB.id == team_id).first().uuid)
             team_file_path = processing_task_db.team_file_path
             opponent_file_path = processing_task_db.opponent_file_path
+
+            if team_uuid is None and team_file_path is None:
+                sql_query = (
+                    sqlalchemy.update(ProcessingTaskDB)
+                    .where(ProcessingTaskDB.task_uuid == task_uuid)
+                    .values(team_uuid=team_uuid)
+                )
+                db.execute(sql_query)
+                db.commit()
+
+            if opponent_file_path is None:
+                raise ValueError("Could not identify opponent file")
 
             if (
                 processing_task_db.team_file_path is None
@@ -669,38 +711,83 @@ def process_files(
             print("-" * 40 + "\n" + f"DEBUG - Processing team file: {team_file_path}")
             print(f"DEBUG - Processing opponent file: {opponent_file_path}")
 
+            if team_uuid is None:
+                # If both team are provided as files, we do parallel analysis
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    team_future = executor.submit(
+                        run_team_analysis, task_uuid, team_file_path, True, team_name
+                    )
+                    opponent_future = executor.submit(
+                        run_team_analysis,
+                        task_uuid,
+                        opponent_file_path,
+                        False,
+                        opponent_name,
+                    )
+                    
+                    try:
+                        team_result = team_future.result()
+                        opponent_result = opponent_future.result()
+                    except Exception as e:
+                        print(f"DEBUG - Error in team analysis: {e}")
+                        query = (
+                            sqlalchemy.update(ProcessingTaskDB)
+                            .where(ProcessingTaskDB.task_uuid == task_uuid)
+                            .values(step=0, status="failed")
+                        )
+                        db.execute(query)
+                        db.commit()
+                        raise e
 
-            query = (
-                sqlalchemy.update(ProcessingTaskDB)
-                .where(ProcessingTaskDB.task_uuid == task_uuid)
-                .values(step=0, status="processing")
-            )
-            db.execute(query)
-            db.commit()
 
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                team_future = executor.submit(
-                    run_team_analysis,
-                    task_uuid,
-                    team_file_path,
-                    True,
-                    team_name
+                    team_id, team_stats_id, team_analysis_id = team_result
+                    opponent_id, opponent_stats_id, opponent_analysis_id = (
+                        opponent_result
+                    )
+            else:
+                # fetch already existing stats for team, and do analysis for opponent
+                team_db = db.query(TeamDB.id).where(TeamDB.uuid == team_uuid).first()
+                if team_db is None:
+                    query = (
+                        sqlalchemy.update(ProcessingTaskDB)
+                        .where(ProcessingTaskDB.task_uuid == task_uuid)
+                        .values(step=0, status="failed")
+                    )
+                    db.execute(query)
+                    db.commit()
+                    raise ValueError("Team doesn't exist")
+                
+                team_id = team_db.id
+                team_analysis_db = (
+                    db.query(TeamAnalysisDB.id)
+                    .where(TeamAnalysisDB.team_id == team_id)
+                    .order_by(TeamAnalysisDB.id.desc())
+                    .first()
                 )
-                opponent_future = executor.submit(
-                    run_team_analysis,
-                    task_uuid,
-                    opponent_file_path,
-                    False,
-                    opponent_name
+                team_stats_db = (
+                    db.query(TeamStatsDB)
+                    .where(TeamStatsDB.team_id == team_id)
+                    .order_by(TeamStatsDB.id.desc())
+                    .first()
                 )
 
-                team_result = team_future.result()
-                opponent_result = opponent_future.result()
+                if team_analysis_db is None or team_stats_db is None:
+                    raise ValueError("Analysis or stats don't exist")
+                
+                team_analysis_id, team_stats_id = team_analysis_db.id, team_stats_db.id
 
-                team_id, team_stats_id, team_analysis_id = team_result
-                opponent_id, opponent_stats_id, opponent_analysis_id = opponent_result
+                try:
+                    opponent_id, opponent_stats_id, opponent_analysis_id = run_team_analysis(
+                        task_uuid, opponent_file_path, False, opponent_name
+                    )
+                except Exception as e:
+                    print(f"DEBUG - Error in opponent analysis: {e}")
+                    query = (
+                        sqlalchemy.update(ProcessingTaskDB)
+                        .where(ProcessingTaskDB.task_uuid == task_uuid)
+                        .values(step=0, status="failed")
+                    )
+                    raise e
 
             # Insert game with user ID if available
             print("DEBUG - Inserting game into database")
@@ -717,13 +804,15 @@ def process_files(
             query = (
                 sqlalchemy.update(ProcessingTaskDB)
                 .where(ProcessingTaskDB.task_uuid == task_uuid)
-                .values(step=5, status="processing")
+                .values(step=2, status="processing")
             )
             db.execute(query)
+            db.commit()
 
-            # todo: refactor report generation
-            team_analysis_path = generate_team_analysis_report(db, team_analysis_id)
-            opponent_analysis_path = generate_team_analysis_report(db, opponent_analysis_id)
+            team_analysis_path = generate_team_analysis_report(db, team_id)
+            opponent_analysis_path = generate_team_analysis_report(
+                db, opponent_id
+            )
 
             # Insert reports
             if game_id:
@@ -742,7 +831,7 @@ def process_files(
             query = (
                 sqlalchemy.update(ProcessingTaskDB)
                 .where(ProcessingTaskDB.task_uuid == task_uuid)
-                .values(step=6, status="processing")
+                .values(step=3, status="processing")
             )
             db.execute(query)
             db.commit()
@@ -851,14 +940,14 @@ def process_files(
                             )
 
             # Step 7: Generate final report
+            print("DEBUG - Generating final report")
             query = (
                 sqlalchemy.update(ProcessingTaskDB)
                 .where(ProcessingTaskDB.task_uuid == task_uuid)
-                .values(step=7, status="processing", game_id=game_id)
+                .values(step=4, status="processing")
             )
             db.execute(query)
             db.commit()
-
 
             report_path = generate_report(db, game_id)
             report_id, _ = insert_report(db, game_id, "game_analysis", report_path)
@@ -867,7 +956,7 @@ def process_files(
             query = (
                 sqlalchemy.update(ProcessingTaskDB)
                 .where(ProcessingTaskDB.task_uuid == task_uuid)
-                .values(step=8, status="completed")
+                .values(step=5, status="completed", game_id=game_id)
             )
             db.execute(query)
             db.commit()
