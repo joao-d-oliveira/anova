@@ -9,3 +9,4 @@
 terraform/terraform.tfvars
 /.clinerules/AWS Profile and Conda Env: anova.md
 /config/.env
+/app/tests/app/data/analysis_json/
