@@ -17,8 +17,6 @@ config = Config()
 
 # Get Cognito configuration
 REGION = config.aws_region
-USER_POOL_ID = config.cognito_user_pool_id
-CLIENT_ID = config.cognito_client_id
 CLIENT_SECRET = config.cognito_client_secret
 
 logger.info(f"Cognito configuration loaded - Region: {REGION}, User Pool ID: {USER_POOL_ID}")

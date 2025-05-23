@@ -1,39 +1,65 @@
 FROM python:3.12-slim
 
-WORKDIR /app
+WORKDIR /root
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install poetry
+
+# Install yarn first
+RUN npm install -g yarn
+
 # Copy requirements file
-COPY requirements.txt .
+COPY pyproject.toml .
+COPY poetry.lock .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi --no-root
 
 # Copy application code
-COPY ./app /app/
-COPY ./config /app/config
-COPY ./requirements.txt /app/
+COPY ./app /root/app/
+# COPY ./config /app/config
+
+# Install app
+WORKDIR /root
+RUN poetry install
+
+# Build frontend
+WORKDIR /root/app/frontend
+
+# Use yarn instead of npm
+RUN yarn install && yarn build
 
 # Create necessary directories
-RUN mkdir -p /app/temp/uploads /app/temp/reports
+RUN mkdir -p /root/app/temp/uploads /root/app/temp/reports
 
 # Make entrypoint script executable
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /root/app/entrypoint.sh
 
 # Expose port
 EXPOSE 8000
 
 # Set environment variables
 ENV ROOT_PATH=""
-ENV PYTHONPATH="/app"
+ENV PYTHONPATH="/root/app"
 ENV LOG_LEVEL="DEBUG"
 ENV ENVIRONMENT="production"
-ENV CONFIG_PATH="/app/config/.env"
+ENV CONFIG_PATH="/root/app/config/.env"
+
+COPY ./alembic.ini /root/alembic.ini
+COPY ./alembic_versions /root/alembic_versions
 
 # Use entrypoint script to initialize database and start application
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/root/app/entrypoint.sh"]

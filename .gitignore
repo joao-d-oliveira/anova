@@ -1,4 +1,4 @@
-/.env
+/.env*
 /data/
 /app_bk.zip
 /app/temp/reports/*.docx
@@ -9,4 +9,9 @@
 terraform/terraform.tfvars
 /.clinerules/AWS Profile and Conda Env: anova.md
 /config/.env
+/app/frontend/node_modules/
+/app/frontend/dist/
+**/__pycache__/
+.DS_Store
 /app/tests/app/data/analysis_json/
+.vscode/launch.json

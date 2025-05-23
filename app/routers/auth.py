@@ -1,20 +1,24 @@
-from fastapi import APIRouter, Request, Response, Form, HTTPException, Depends, status
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from typing import Optional
-import os
-from pathlib import Path
+import random
+from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
+import secrets
+import bcrypt
+import datetime
+from pydantic import BaseModel, EmailStr, constr
+from jose import jwt
+from sqlalchemy.orm import Session
+from app.database.common import get_db
+from app.routers.util import get_verified_user_email
+from app.services.email import send_reset_password_email, send_verify_email
+from app.config import Config
 
-from services.cognito import (
-    register_user, confirm_registration, login, logout,
-    forgot_password, confirm_forgot_password, verify_token,
-    cognito_idp
+
+from app.database.connection import (
+    confirm_user, create_user, delete_otp, get_public_user_by_email, get_user_by_email, update_user_password,
+    create_otp, verify_otp
 )
-from database.connection import execute_query
 
-# Set up Jinja2 templates
-root = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(root, "../templates"))
+
+config = Config()
 
 router = APIRouter(
     prefix="/auth",
@@ -22,643 +26,315 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: Optional[str] = None):
-    """
-    Display the login page
-    """
-    context = {"request": request}
-    
-    # Handle specific error messages
-    if error == "auth_service_unavailable":
-        context["error"] = "Authentication service is unavailable. Please contact the administrator."
-    elif error:
-        context["error"] = error
-        
-    return templates.TemplateResponse("auth/login.html", context)
+# Pydantic models
+class UserBase(BaseModel):
+    email: EmailStr
+    name: str
+    phone_number: str
+    school: str
+    role: str
 
-@router.post("/login")
-async def login_user(
-    request: Request,
-    response: Response,
-    email: str = Form(...),
-    password: str = Form(...)
-):
-    """
-    Authenticate a user
-    """
-    print(f"Login route called for email: {email}")
-    
-    # For development mode, bypass authentication if requested
-    if os.getenv("ENVIRONMENT", "development") == "development" and email == "dev@example.com" and password == "dev":
-        print("Using development mode authentication bypass")
-        
-        # Create a mock response with redirect
-        redirect_response = RedirectResponse(url="/app", status_code=status.HTTP_302_FOUND)
-        
-        # Set mock cookies for authentication
-        max_age = 3600  # 1 hour
-        redirect_response.set_cookie(
-            key="access_token", 
-            value="mock_access_token",
-            httponly=True,
-            max_age=max_age,
-            path="/"
-        )
-        
-        redirect_response.set_cookie(
-            key="id_token", 
-            value="mock_id_token",
-            httponly=True,
-            max_age=max_age,
-            path="/"
-        )
-        
-        redirect_response.set_cookie(
-            key="refresh_token", 
-            value="mock_refresh_token",
-            httponly=True,
-            max_age=30 * 24 * 3600,  # 30 days
-            path="/"
-        )
-        
-        # Return the redirect response
-        return redirect_response
-    
-    # Check if Cognito is properly configured
-    if not os.getenv("COGNITO_CLIENT_SECRET"):
-        # If we're in development mode and Cognito is not configured, use a mock user
-        if os.getenv("ENVIRONMENT", "development") == "development":
-            print("WARNING: COGNITO_CLIENT_SECRET is not set. Using mock authentication in development mode.")
-            
-            # Create a mock response with redirect
-            redirect_response = RedirectResponse(url="/app", status_code=status.HTTP_302_FOUND)
-            
-            # Set mock cookies for authentication
-            max_age = 3600  # 1 hour
-            redirect_response.set_cookie(
-                key="access_token", 
-                value="mock_access_token",
-                httponly=True,
-                max_age=max_age,
-                path="/"
-            )
-            
-            redirect_response.set_cookie(
-                key="id_token", 
-                value="mock_id_token",
-                httponly=True,
-                max_age=max_age,
-                path="/"
-            )
-            
-            redirect_response.set_cookie(
-                key="refresh_token", 
-                value="mock_refresh_token",
-                httponly=True,
-                max_age=30 * 24 * 3600,  # 30 days
-                path="/"
-            )
-            
-            # Return the redirect response
-            return redirect_response
-        else:
-            # In production, show an error
-            return templates.TemplateResponse(
-                "auth/login.html", 
-                {
-                    "request": request,
-                    "error": "Authentication service is not properly configured. Please contact the administrator."
-                }
-            )
-    
-    try:
-        # Authenticate with Cognito
-        print("Calling login function...")
-        auth_result = login(email, password)
-        print(f"Login successful, got auth result with keys: {auth_result.keys()}")
-        
-        # Get user info from token
-        user_info = verify_token(auth_result["IdToken"])
-        
-        # Check if user exists in our database
-        query = "SELECT id FROM users WHERE cognito_id = %s"
-        result = execute_query(query, (user_info.get("sub"),))
-        
-        if not result:
-            # User doesn't exist in our database, create them
-            insert_query = """
-            INSERT INTO users (cognito_id, email, name, phone_number, school, role)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """
-            
-            # Extract custom attributes
-            phone_number = user_info.get("phone_number", "")
-            school = user_info.get("custom:school", "")
-            role = user_info.get("custom:role", "")
-            
-            execute_query(
-                insert_query, 
-                (
-                    user_info.get("sub"),
-                    user_info.get("email"),
-                    user_info.get("name"),
-                    phone_number,
-                    school,
-                    role
-                ),
-                fetch=False
-            )
-        
-        # Create a response with redirect
-        redirect_response = RedirectResponse(url="/app", status_code=status.HTTP_302_FOUND)
-        
-        # Set cookies for authentication
-        max_age = 3600  # 1 hour
-        redirect_response.set_cookie(
-            key="access_token", 
-            value=auth_result["AccessToken"],
-            httponly=True,
-            max_age=max_age,
-            path="/"
-        )
-        
-        redirect_response.set_cookie(
-            key="id_token", 
-            value=auth_result["IdToken"],
-            httponly=True,
-            max_age=max_age,
-            path="/"
-        )
-        
-        redirect_response.set_cookie(
-            key="refresh_token", 
-            value=auth_result["RefreshToken"],
-            httponly=True,
-            max_age=30 * 24 * 3600,  # 30 days
-            path="/"
-        )
-        
-        # Return the redirect response
-        return redirect_response
-    except Exception as e:
-        error_str = str(e)
-        
-        # Check if this is a UserNotConfirmedException
-        if "UserNotConfirmedException" in error_str:
-            # Redirect to confirmation page with message
-            return templates.TemplateResponse(
-                "auth/confirm.html", 
-                {
-                    "request": request,
-                    "email": email,
-                    "message": "Your account needs to be confirmed before logging in. Please check your email for a confirmation code."
-                }
-            )
-        
-        # Return to login page with error for other exceptions
-        return templates.TemplateResponse(
-            "auth/login.html", 
-            {
-                "request": request,
-                "error": f"Login failed: {error_str}"
-            }
-        )
+class UserCreate(UserBase):
+    password: str
+    confirm_password: str
 
-@router.get("/logout")
-async def logout_user(request: Request):
-    """
-    Log out a user
-    """
-    try:
-        # Get access token from cookies
-        access_token = request.cookies.get("access_token")
-        
-        if access_token:
-            # Logout from Cognito
-            logout(access_token)
-        
-        # Create response with redirect
-        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-        
-        # Clear cookies
-        response.delete_cookie(key="access_token", path="/")
-        response.delete_cookie(key="id_token", path="/")
-        response.delete_cookie(key="refresh_token", path="/")
-        
-        return response
-    except Exception as e:
-        # Redirect to landing page anyway
-        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-        
-        # Clear cookies
-        response.delete_cookie(key="access_token", path="/")
-        response.delete_cookie(key="id_token", path="/")
-        response.delete_cookie(key="refresh_token", path="/")
-        
-        return response
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
-@router.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    """
-    Display the registration page
-    """
-    return templates.TemplateResponse("auth/register.html", {"request": request})
+class UserConfirm(BaseModel):
+    email: EmailStr
+    code: str
+
+class UserResponse(UserBase):
+    id: int
+    created_at: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: datetime.datetime
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+    confirm_password: str
+
+
+class MessageResponse(BaseModel):
+    detail: str
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode(), salt).decode()
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash"""
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+def create_session_token() -> str:
+    """Create a new session token"""
+    return secrets.token_urlsafe(32)
+
+def get_cookie_dict(token: str):
+    return {
+        "key": "Authorization",
+        "value": f"Bearer {token}",
+        "httponly": True,
+        "secure": config.environment != "development",
+        "samesite": "lax",
+        "max_age": 7 * 24 * 60 * 60
+    }
+
 
 def validate_password(password: str) -> tuple[bool, str]:
-    """
-    Validate password against Cognito password policy
-    
-    Args:
-        password: Password to validate
-        
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    # Check length
+    """Validate password requirements"""
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"
     
-    # Check for uppercase
     if not any(c.isupper() for c in password):
         return False, "Password must have uppercase characters"
     
-    # Check for lowercase
     if not any(c.islower() for c in password):
         return False, "Password must have lowercase characters"
     
-    # Check for digits
     if not any(c.isdigit() for c in password):
         return False, "Password must have numeric characters"
     
-    # Check for symbols
     if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in password):
         return False, "Password must have symbol characters"
     
     return True, ""
 
-@router.post("/register")
-async def register_user_route(
-    request: Request,
-    name: str = Form(...),
-    email: str = Form(...),
-    phone_number: str = Form(...),
-    school: str = Form(...),
-    role: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...)
-):
-    """
-    Register a new user
-    """
-    try:
-        # Validate passwords match
-        if password != confirm_password:
-            return templates.TemplateResponse(
-                "auth/register.html",
-                {
-                    "request": request,
-                    "error": "Passwords do not match",
-                    "name": name,
-                    "email": email,
-                    "phone_number": phone_number,
-                    "school": school,
-                    "role": role
-                }
-            )
-        
-        # Validate password meets requirements
-        is_valid, error_message = validate_password(password)
-        if not is_valid:
-            return templates.TemplateResponse(
-                "auth/register.html",
-                {
-                    "request": request,
-                    "error": error_message,
-                    "name": name,
-                    "email": email,
-                    "phone_number": phone_number,
-                    "school": school,
-                    "role": role
-                }
-            )
-        
-        # Format phone number with + prefix if not present
-        if not phone_number.startswith('+'):
-            phone_number = f"+{phone_number}"
-        
-        # Register with Cognito
-        register_response = register_user(email, password, name, phone_number, school, role)
-        
-        # Auto-confirm the user in development environment
-        if os.getenv("ENVIRONMENT", "development") == "development":
-            try:
-                # Create a new boto3 client with AWS credentials
-                import boto3
-                client = boto3.client(
-                    'cognito-idp',
-                    region_name=os.getenv("AWS_REGION", "us-east-1"),
-                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-                )
-                
-                # Use Cognito admin API to confirm the user
-                client.admin_confirm_sign_up(
-                    UserPoolId=os.getenv("COGNITO_USER_POOL_ID"),
-                    Username=email
-                )
-                
-                # Also mark the email as verified
-                client.admin_update_user_attributes(
-                    UserPoolId=os.getenv("COGNITO_USER_POOL_ID"),
-                    Username=email,
-                    UserAttributes=[
-                        {
-                            'Name': 'email_verified',
-                            'Value': 'true'
-                        }
-                    ]
-                )
-                
-                # Redirect to login page with success message
-                return templates.TemplateResponse(
-                    "auth/login.html", 
-                    {
-                        "request": request,
-                        "email": email,
-                        "message": "Registration successful! Your account has been automatically confirmed. You can now log in."
-                    }
-                )
-            except Exception as e:
-                # If auto-confirmation fails, fall back to manual confirmation
-                return templates.TemplateResponse(
-                    "auth/confirm.html", 
-                    {
-                        "request": request,
-                        "email": email,
-                        "message": f"Registration successful, but auto-confirmation failed: {str(e)}. Please check your email for a confirmation code or use the developer tool to confirm your account."
-                    }
-                )
-        else:
-            # In production, redirect to confirmation page
-            return templates.TemplateResponse(
-                "auth/confirm.html", 
-                {
-                    "request": request,
-                    "email": email,
-                    "message": "Registration successful! Please check your email for a confirmation code."
-                }
-            )
-    except Exception as e:
-        # Return to registration page with error
-        return templates.TemplateResponse(
-            "auth/register.html", 
-            {
-                "request": request,
-                "error": f"Registration failed: {str(e)}",
-                "name": name,
-                "email": email,
-                "phone_number": phone_number,
-                "school": school,
-                "role": role
-            }
-        )
 
-@router.get("/confirm", response_class=HTMLResponse)
-async def confirm_page(request: Request, email: Optional[str] = None):
-    """
-    Display the confirmation page
-    """
-    return templates.TemplateResponse(
-        "auth/confirm.html", 
-        {
-            "request": request,
-            "email": email
-        }
+@router.post("/login", response_model=TokenResponse)
+async def login_user(user_data: UserLogin, db: Session = Depends(get_db)):
+    """Authenticate a user"""
+    # Get user from database
+    user = get_user_by_email(db, user_data.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    # Verify password
+    if not verify_password(user_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    # Create session
+    token = jwt.encode(
+        {"sub": user_data.email, "exp": datetime.datetime.now() + datetime.timedelta(days=7)},
+        config.session_secret_key,
+        algorithm="HS256",
     )
 
-@router.post("/confirm")
-async def confirm_registration_route(
-    request: Request,
-    email: str = Form(...),
-    code: str = Form(...)
-):
-    """
-    Confirm user registration
-    """
-    try:
-        # Confirm registration with Cognito
-        confirm_registration(email, code)
-        
-        # Redirect to login page
-        return templates.TemplateResponse(
-            "auth/login.html", 
-            {
-                "request": request,
-                "message": "Email confirmed! You can now log in.",
-                "email": email
-            }
-        )
-    except Exception as e:
-        # Return to confirmation page with error
-        return templates.TemplateResponse(
-            "auth/confirm.html", 
-            {
-                "request": request,
-                "error": f"Confirmation failed: {str(e)}",
-                "email": email
-            }
-        )
-
-@router.get("/forgot-password", response_class=HTMLResponse)
-async def forgot_password_page(request: Request):
-    """
-    Display the forgot password page
-    """
-    return templates.TemplateResponse("auth/forgot_password.html", {"request": request})
-
-@router.post("/forgot-password")
-async def forgot_password_route(
-    request: Request,
-    email: str = Form(...)
-):
-    """
-    Initiate password reset
-    """
-    try:
-        # In development environment, ensure email is verified first
-        if os.getenv("ENVIRONMENT", "development") == "development":
-            try:
-                # Create a new boto3 client with AWS credentials
-                import boto3
-                client = boto3.client(
-                    'cognito-idp',
-                    region_name=os.getenv("AWS_REGION", "us-east-1"),
-                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-                )
-                
-                # Mark the email as verified
-                client.admin_update_user_attributes(
-                    UserPoolId=os.getenv("COGNITO_USER_POOL_ID"),
-                    Username=email,
-                    UserAttributes=[
-                        {
-                            'Name': 'email_verified',
-                            'Value': 'true'
-                        }
-                    ]
-                )
-            except Exception as e:
-                # If verification fails, log the error but continue
-                print(f"Failed to verify email before password reset: {str(e)}")
-        
-        # Initiate password reset with Cognito
-        forgot_password(email)
-        
-        # Redirect to reset password page
-        return templates.TemplateResponse(
-            "auth/reset_password.html", 
-            {
-                "request": request,
-                "email": email,
-                "message": "Password reset initiated! Please check your email for a confirmation code."
-            }
-        )
-    except Exception as e:
-        # Return to forgot password page with error
-        return templates.TemplateResponse(
-            "auth/forgot_password.html", 
-            {
-                "request": request,
-                "error": f"Password reset failed: {str(e)}",
-                "email": email
-            }
-        )
-
-@router.get("/reset-password", response_class=HTMLResponse)
-async def reset_password_page(request: Request, email: Optional[str] = None):
-    """
-    Display the reset password page
-    """
-    return templates.TemplateResponse(
-        "auth/reset_password.html", 
-        {
-            "request": request,
-            "email": email
-        }
+    response = Response(status_code=200)
+    response.set_cookie(
+        **get_cookie_dict(token)
     )
 
-@router.post("/reset-password")
-async def reset_password_route(
-    request: Request,
-    email: str = Form(...),
-    code: str = Form(...),
-    new_password: str = Form(...),
-    confirm_password: str = Form(...)
+    return response
+
+@router.post("/confirm-email")
+async def confirm_email(data: UserConfirm, db: Session = Depends(get_db)):
+    # Get unique token from database
+    user = get_user_by_email(db, data.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Error confirming email"
+        )
+    
+    if not verify_otp(db, user.id, data.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid code"
+        )
+    
+    if user.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already confirmed"
+        )
+    
+    confirm_user(db, user.id)
+    delete_otp(db, user.id, data.code)
+
+    token = jwt.encode(
+        {"sub": data.email, "exp": datetime.datetime.now() + datetime.timedelta(days=7)},
+        config.session_secret_key,
+        algorithm="HS256",
+    )
+
+    response = Response(status_code=200)
+    response.set_cookie(
+        **get_cookie_dict(token)
+    )
+
+    return response
+
+@router.get("/logout", response_model=MessageResponse)
+async def logout_user():
+    """Log out a user"""
+    response = Response(status_code=200)
+    response.set_cookie(
+        "Authorization",
+        path="/",
+        httponly=True,
+        secure=config.environment != "development",
+        samesite="lax",
+        max_age=0
+    )
+
+    return response
+
+@router.post("/register", response_model=MessageResponse)
+async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user"""
+    # Validate passwords match
+    if user_data.password != user_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    # Validate password meets requirements
+    is_valid, error_message = validate_password(user_data.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
+        )
+    
+    # Check if user already exists
+    existing_user = get_user_by_email(db, user_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Format phone number with + prefix if not present
+    phone_number = user_data.phone_number
+    if phone_number and not phone_number.startswith('+'):
+        phone_number = f"+{phone_number}"
+    
+    # Hash password
+    password_hash = hash_password(user_data.password)
+    
+    # Create user
+    user_id = create_user(
+        db,
+        user_data.email,
+        password_hash,
+        user_data.name,
+        phone_number,
+        user_data.school,
+        user_data.role
+    )
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create user"
+        )
+    
+    # Generate unique token for email confirmation
+    unique_token = ''.join(random.choices('0123456789', k=6))
+    create_otp(db, user_id, unique_token)
+
+    # Send email with unique token
+    send_verify_email(user_data.email, unique_token, config)
+
+    return MessageResponse(detail="Successfully registered")
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(payload:ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Initiate password reset"""
+    # Get user from database
+    user = get_user_by_email(db, payload.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email not found"
+        )
+    
+    # Generate reset token
+    reset_token = ''.join(random.choices('0123456789', k=6))
+    create_otp(db, user.id, reset_token)
+    
+    # Store reset token in database
+    send_reset_password_email(payload.email, reset_token, config)
+
+    return MessageResponse(
+        detail="Password reset initiated! Please check your email for instructions."
+    )
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    reset_password_request: ResetPasswordRequest, 
+    db: Session = Depends(get_db)
 ):
-    """
-    Complete password reset
-    """
-    try:
-        # Validate passwords match
-        if new_password != confirm_password:
-            return templates.TemplateResponse(
-                "auth/reset_password.html", 
-                {
-                    "request": request,
-                    "error": "Passwords do not match",
-                    "email": email
-                }
-            )
-        
-        # Complete password reset with Cognito
-        confirm_forgot_password(email, code, new_password)
-        
-        # Redirect to login page
-        return templates.TemplateResponse(
-            "auth/login.html", 
-            {
-                "request": request,
-                "message": "Password reset successful! You can now log in with your new password.",
-                "email": email
-            }
+    """Complete password reset"""
+    # Validate passwords match
+    if reset_password_request.new_password != reset_password_request.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
         )
-    except Exception as e:
-        # Return to reset password page with error
-        return templates.TemplateResponse(
-            "auth/reset_password.html", 
-            {
-                "request": request,
-                "error": f"Password reset failed: {str(e)}",
-                "email": email
-            }
+    
+    # Validate password meets requirements
+    is_valid, error_message = validate_password(reset_password_request.new_password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
         )
+    
+    # Get user from database
+    user = get_user_by_email(db, reset_password_request.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email not found"
+        )
+    
+    # Verify reset token
+    if not verify_otp(db, user.id, reset_password_request.otp):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token"
+        )
+    
+    # Hash new password
+    password_hash = hash_password(reset_password_request.new_password)
+    
+    # Update password
+    update_user_password(db, user.id, password_hash)
 
-@router.get("/terms", response_class=HTMLResponse)
-async def terms_page(request: Request):
-    """
-    Display the terms and conditions page
-    """
-    return templates.TemplateResponse("auth/terms.html", {"request": request})
+    delete_otp(db, user.id, reset_password_request.otp)
+    
+    return MessageResponse(
+        detail="Password reset successful! You can now log in with your new password."
+    )
 
-@router.post("/terms")
-async def terms_agree(request: Request):
-    """
-    Handle terms agreement submission
-    """
-    # Redirect back to registration page
-    return RedirectResponse(url="/auth/register", status_code=status.HTTP_302_FOUND)
+@router.get("/me", response_model=UserBase)
+async def get_me(user_email: str = Depends(get_verified_user_email), db: Session = Depends(get_db)):
+    """Get the current user"""
+    user = get_public_user_by_email(db, user_email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    return UserBase.model_validate(user.__dict__)
 
-# Development-only endpoints
-if os.getenv("ENVIRONMENT", "development") == "development":
-    @router.get("/dev/confirm")
-    async def dev_confirm_page(request: Request):
-        """
-        Development-only page to manually confirm users
-        """
-        return templates.TemplateResponse("auth/dev_confirm.html", {"request": request})
-        
-    @router.get("/dev/confirm-user/{email}")
-    async def confirm_user_dev(request: Request, email: str):
-        """
-        Development-only endpoint to manually confirm a user's registration
-        """
-        try:
-            # Create a new boto3 client with AWS credentials
-            import boto3
-            client = boto3.client(
-                'cognito-idp',
-                region_name=os.getenv("AWS_REGION", "us-east-1"),
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-            )
-            
-            # Use Cognito admin API to confirm the user
-            client.admin_confirm_sign_up(
-                UserPoolId=os.getenv("COGNITO_USER_POOL_ID"),
-                Username=email
-            )
-            
-            # Also mark the email as verified
-            client.admin_update_user_attributes(
-                UserPoolId=os.getenv("COGNITO_USER_POOL_ID"),
-                Username=email,
-                UserAttributes=[
-                    {
-                        'Name': 'email_verified',
-                        'Value': 'true'
-                    }
-                ]
-            )
-            
-            return {
-                "status": "success",
-                "message": f"User {email} has been confirmed. You can now log in."
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to confirm user: {str(e)}"
-            }
