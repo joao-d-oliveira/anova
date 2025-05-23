@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, Container, Stack, Title, TextInput, PasswordInput, Checkbox, Button, Group, Text, Anchor, Image, Center } from "@mantine/core";
+import { Card, Container, Stack, Title, TextInput, PasswordInput, Checkbox, Button, Group, Text, Anchor, Image, Center, Space } from "@mantine/core";
 import { useForm } from '@mantine/form';
 import { useRegister } from "../../mutations";
 import { successNotification } from "../../common/notifications";
@@ -199,7 +199,7 @@ export default function Signup() {
                 <title>Anova | Signup</title>
             </Head>
             {confirmEmail === null ? <RegisterForm cbRegistered={(email) => setConfirmEmail(email)} /> : <ConfirmAccount email={confirmEmail} />}
-
+            <Space h="128" />
         </Container>
     )
 }
