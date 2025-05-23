@@ -8,7 +8,6 @@ from pathlib import Path
 
 from app.routers import auth, report, upload, team
 from app.config import Config
-from app.database.init_db import init_db
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -45,10 +44,6 @@ async def startup_event():
     """
     Initialize the database when the application starts
     """
-    logger.info("Initializing database...")
-    init_db(config)
-    logger.info("Database initialization complete")
-    
     logger.info(f"Base directory: {root}")
     logger.info(f"Static directory: {static_dir}")
     logger.info(f"Static directory exists: {static_dir.exists()}")
