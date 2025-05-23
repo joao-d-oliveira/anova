@@ -123,7 +123,7 @@ def analyze_team_pdf(file_path: str, is_our_team: bool, prompt_path: str=None ) 
         #     return {}
     except Exception as e:
         print(f"Error parsing JSON from Claude response: {e}")
-        return {}
+        raise ValueError(f"Error parsing JSON from Claude response: {e}")
 
 def post_process_team_stats(analysis: TeamWrapper) -> TeamWrapper:
     """
