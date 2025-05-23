@@ -194,7 +194,7 @@ function ConfirmAccount({ email }: { email: string }) {
 export default function Signup() {
     const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
     return (
-        <Container size="sm" mb="xl">
+        <Container size="sm">
             <Head>
                 <title>Anova | Signup</title>
             </Head>
