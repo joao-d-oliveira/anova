@@ -80,9 +80,9 @@ export default function Dashboard() {
             useLatestTeamAnalysis: false,
         },
         validate: {
-            yourTeamName: (value) => (!form.values.useLatestTeamAnalysis && value.length > 0) ? null : 'Team name is required',
+            yourTeamName: (value) => { return (!form.values.useLatestTeamAnalysis && value.length === 0) ? 'Team name is required' : null },
             opponentTeamName: (value) => value.length > 0 ? null : 'Opponent team name is required',
-            yourTeamStats: (value) => (!form.values.useLatestTeamAnalysis && value !== null) ? null : 'Team stats are required',
+            yourTeamStats: (value) => (!form.values.useLatestTeamAnalysis && value === null) ? 'Team stats are required' : null,
             opponentTeamStats: (value) => value !== null ? null : 'Opponent team stats are required',
         },
     });
@@ -96,14 +96,14 @@ export default function Dashboard() {
             upload.mutate({
                 team_uuid: latestHomeTeamAnalysis.data.team_uuid,
                 team_files: null,
-                opponent_files: null,
+                opponent_files: form.values.opponentTeamStats[0],
                 team_name: latestHomeTeamAnalysis.data.team_name,
                 opponent_name: values.opponentTeamName
             });
         } else {
-        upload.mutate({
-            team_files: form.values.yourTeamStats[0],
-            opponent_files: form.values.opponentTeamStats[0],
+            upload.mutate({
+                team_files: form.values.yourTeamStats[0],
+                opponent_files: form.values.opponentTeamStats[0],
                 team_name: form.values.yourTeamName,
                 opponent_name: form.values.opponentTeamName
             });
@@ -134,7 +134,7 @@ export default function Dashboard() {
                                     <UploadComponent form={form} field="yourTeamStats" />
                                     {latestHomeTeamAnalysis.data && (
                                         <>
-                                            <Divider label='OR'/>
+                                            <Divider label='OR' />
                                             <Checkbox label={`Re-use latest team analysis for ${latestHomeTeamAnalysis.data.team_name} (${new Date(latestHomeTeamAnalysis.data.analysis_date).toLocaleString()})`} {...form.getInputProps('useLatestTeamAnalysis')} />
                                         </>
                                     )}

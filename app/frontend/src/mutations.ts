@@ -112,8 +112,9 @@ export const useUpload = () => {
     const upload = useMutation({
         mutationFn: async (data: BodyUploadFilesApiTaskUploadPost) => {
             const formData = new FormData();
-            formData.append('team_files', data.team_files);
+            if (data.team_files) formData.append('team_files', data.team_files);
             formData.append('opponent_files', data.opponent_files);
+            if (data.team_uuid) formData.append('team_uuid', data.team_uuid);
             if (data.team_name) formData.append('team_name', data.team_name);
             if (data.opponent_name) formData.append('opponent_name', data.opponent_name);
             if (data.use_local_simulation !== undefined) {
