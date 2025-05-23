@@ -58,5 +58,8 @@ ENV LOG_LEVEL="DEBUG"
 ENV ENVIRONMENT="production"
 ENV CONFIG_PATH="/root/app/config/.env"
 
+COPY ./alembic.ini /root/alembic.ini
+COPY ./alembic_versions /root/alembic_versions
+
 # Use entrypoint script to initialize database and start application
 ENTRYPOINT ["/root/app/entrypoint.sh"]
